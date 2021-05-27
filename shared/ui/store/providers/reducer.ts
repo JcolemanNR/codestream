@@ -13,7 +13,6 @@ import { mapFilter, safe } from "@codestream/webview/utils";
 import { ThirdPartyProviderConfig } from "@codestream/protocols/agent";
 import { createSelector } from "reselect";
 import { PROVIDER_MAPPINGS } from "@codestream/webview/Stream/CrossPostIssueControls/types";
-import { ContextState } from "../context/types";
 import { UsersState } from "../users/types";
 import { SessionState } from "../session/types";
 
@@ -49,13 +48,18 @@ export interface LabelHash {
 	PullRequests: string;
 	Pullrequest: string;
 	pullrequest: string;
+	pullrequests: string;
 	PR: string;
 	PRs: string;
 	pr: string;
 	AddSingleComment: string;
+	repoBaseLabel: string;
+	repoBranchBaseLabel;
+	repoHeadLabel: string;
+	repoBranchHeadLabel: string;
 }
 
-const MRLabel = {
+const MRLabel: LabelHash = {
 	PullRequest: "Merge Request",
 	PullRequests: "Merge Requests",
 	Pullrequest: "Merge request",
@@ -64,10 +68,14 @@ const MRLabel = {
 	PR: "MR",
 	PRs: "MRs",
 	pr: "mr",
-	AddSingleComment: "Add comment now"
+	AddSingleComment: "Add comment now",
+	repoBaseLabel: "source",
+	repoBranchBaseLabel: "source",
+	repoHeadLabel: "target",
+	repoBranchHeadLabel: "target"
 };
 
-const PRLabel = {
+const PRLabel: LabelHash = {
 	PullRequest: "Pull Request",
 	PullRequests: "Pull Requests",
 	Pullrequest: "Pull request",
@@ -76,7 +84,11 @@ const PRLabel = {
 	PR: "PR",
 	PRs: "PRs",
 	pr: "pr",
-	AddSingleComment: "Add single comment"
+	AddSingleComment: "Add single comment",
+	repoBaseLabel: "base",
+	repoBranchBaseLabel: "base",
+	repoHeadLabel: "head",
+	repoBranchHeadLabel: "compare"
 };
 
 export const getPRLabel = createSelector(
