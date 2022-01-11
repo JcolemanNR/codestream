@@ -1108,6 +1108,7 @@ export interface GetMethodLevelTelemetryResponse {
 	newRelicEntityGuid?: string;
 	newRelicEntityName?: string;
 	newRelicUrl?: string;
+	newRelicEntityAccounts: EntityAccount[];
 }
 
 export const GetMethodLevelTelemetryRequestType = new RequestType<
