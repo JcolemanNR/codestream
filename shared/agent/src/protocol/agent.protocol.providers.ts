@@ -1109,6 +1109,7 @@ export interface GetMethodLevelTelemetryResponse {
 	newRelicEntityName?: string;
 	newRelicUrl?: string;
 	newRelicEntityAccounts: EntityAccount[];
+	goldenMetrics?: any;
 }
 
 export const GetMethodLevelTelemetryRequestType = new RequestType<
@@ -1241,6 +1242,19 @@ export interface ErrorGroup {
 			gravatar: string;
 			id: number;
 			name: string;
+		};
+	};
+}
+
+export interface GoldenMetricsResult {
+	actor: {
+		entity: {
+			goldenMetrics: {
+				metrics: {
+					query: string;
+					title: string;
+				}[];
+			};
 		};
 	};
 }
