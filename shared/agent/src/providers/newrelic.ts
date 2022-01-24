@@ -701,7 +701,8 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 										name: tags.find(_ => _.key === "account")?.values[0] || "Account"
 									},
 									guid: relatedResult.source.entity.guid,
-									name: relatedResult.source.entity.name
+									name: relatedResult.source.entity.name,
+									alertSeverity: relatedResult.source.entity.alertSeverity
 								});
 							}
 						}
@@ -1652,21 +1653,21 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 
 			request.options = request.options || {};
 			let [throughputResponse, averageDurationResponse, errorRateResponse] = await Promise.all([
-				request.options.includeThroughput
+				request.options.includeThroughput && metricTimesliceNames?.length
 					? this.getMethodThroughput({
 							newRelicAccountId,
 							newRelicEntityGuid,
 							metricTimesliceNames
 					  })
 					: undefined,
-				request.options.includeAverageDuration
+				request.options.includeAverageDuration && metricTimesliceNames?.length
 					? this.getMethodAverageDuration({
 							newRelicAccountId,
 							newRelicEntityGuid,
 							metricTimesliceNames
 					  })
 					: undefined,
-				request.options.includeErrorRate
+				request.options.includeErrorRate && metricTimesliceNames?.length
 					? this.getMethodErrorRate({
 							newRelicAccountId,
 							newRelicEntityGuid,
@@ -1736,6 +1737,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 					throughputResponse?.actor?.account?.nrql?.results.length ||
 					averageDurationResponse?.actor?.account?.nrql?.results.length ||
 					errorRateResponse?.actor?.account?.nrql?.results.length,
+				newRelicAlertSeverity: entity.alertSeverity,
 				newRelicAccountId: newRelicAccountId,
 				newRelicEntityGuid: newRelicEntityGuid,
 				newRelicEntityName: entityName,
@@ -1785,6 +1787,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			return {
 				goldenMetrics: goldenMetrics,
 				newRelicEntityAccounts: observabilityRepo.entityAccounts,
+				newRelicAlertSeverity: entity.alertSeverity,
 				newRelicEntityName: entity.entityName!,
 				newRelicEntityGuid: entity.entityGuid!,
 				newRelicUrl: `${this.productUrl}/redirect/entity/${entity.entityGuid}`
@@ -2457,6 +2460,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				  results {
 					source {
 					  entity {
+						alertSeverity
 						name
 						guid
 						type
