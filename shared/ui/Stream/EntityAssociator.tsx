@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { PropsWithChildren, useEffect, useState } from "react";
 import { useSelector, useDispatch, shallowEqual } from "react-redux";
 import { NoContent } from "../src/components/Pane";
 
@@ -21,7 +21,7 @@ interface EntityAssociatorProps {
 	onSuccess: Function;
 }
 
-export const EntityAssociator = React.memo((props: EntityAssociatorProps) => {
+export const EntityAssociator = React.memo((props: PropsWithChildren<EntityAssociatorProps>) => {
 	const dispatch = useDispatch<any>();
 
 	const [entities, setEntities] = useState<{ guid: string; name: string }[]>([]);
@@ -109,6 +109,7 @@ export const EntityAssociator = React.memo((props: EntityAssociatorProps) => {
 			>
 				Associate
 			</Button>
+			{props.children}
 		</NoContent>
 	);
 });
