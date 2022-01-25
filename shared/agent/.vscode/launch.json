@@ -59,7 +59,7 @@
 			"request": "launch",
 			"runtimeExecutable": "node",
 			"name": "Run UnitTests for File",
-			"program": "${workspaceFolder}/node_modules/.bin/mocha-webpack",
+			"program": "${workspaceFolder}/node_modules/.bin/mochapack",
 			"args": ["${file}"],
 			"cwd": "${workspaceFolder}/",
 			"console": "integratedTerminal",

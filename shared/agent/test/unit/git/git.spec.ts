@@ -55,6 +55,10 @@ describe("git", () => {
 					value: "https://gitlabratory.example.com/myorg/myrepo-sample-java.git"
 				},
 				{
+					type: "https",
+					value: "https://gitlabratory.example.com/myorg/myrepo-sample-java"
+				},
+				{
 					type: "ssh",
 					value: "git@gitlabratory.example.com:myorg/myrepo-sample-java.git"
 				}
