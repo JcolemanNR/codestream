@@ -769,7 +769,7 @@ export interface CSMePreferences {
 	demoMode?: boolean;
 	lastTeamId?: string;
 	observabilityRepoEntities?: any;
-	methodLevelTelemetryRepoEntities?: any;
+	methodLevelTelemetryRepoEntities?: { [key: string]: string | undefined };
 }
 
 export interface RepoSetting {

@@ -14,6 +14,8 @@ import { api } from "../store/codeErrors/actions";
 import { DropdownButton } from "./DropdownButton";
 
 interface EntityAssociatorProps {
+	title?: string;
+	label?: string;
 	remote: string;
 	remoteName: string;
 	onSuccess: Function;
@@ -34,22 +36,32 @@ export const EntityAssociator = React.memo((props: EntityAssociatorProps) => {
 			});
 	});
 
-	const items =
-		entities.map(_ => {
-			return {
-				key: _.guid,
-				label: _.name,
-				action: () => {
-					setSelected(_);
+	const items = entities?.length
+		? ([
+				{
+					type: "search",
+					placeholder: "Search...",
+					action: "search",
+					key: "search"
 				}
-			};
-		}) || [];
+		  ] as any).concat(
+				entities.map(_ => {
+					return {
+						key: _.guid,
+						label: _.name,
+						searchLabel: _.name,
+						action: () => {
+							setSelected(_);
+						}
+					};
+				})
+		  )
+		: [];
 
 	return (
 		<NoContent style={{ marginLeft: "40px" }}>
-			<p style={{ marginTop: 0 }}>
-				Associate this repo with an entity on New Relic in order to see errors
-			</p>
+			{props.title && <h3>{props.title}</h3>}
+			<p style={{ marginTop: 0 }}>{props.label}</p>
 			<DropdownButton
 				items={items}
 				selectedKey={selected ? selected.guid : undefined}
@@ -79,6 +91,7 @@ export const EntityAssociator = React.memo((props: EntityAssociatorProps) => {
 								console.log("assignRepository", {
 									directives: _?.directives
 								});
+								// a little fragile, but we're trying to get the entity guid back
 								props.onSuccess &&
 									props.onSuccess({
 										entityGuid: _?.directives.find(d => d.type === "assignRepository")?.data

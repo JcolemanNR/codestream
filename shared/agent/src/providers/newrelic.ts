@@ -68,9 +68,10 @@ import {
 	GoldenMetricsResult,
 	GetMethodLevelTelemetryRequestType,
 	GetMethodLevelTelemetryResponse,
-	MetricTimesliceNameMapping
+	MetricTimesliceNameMapping,
+	ObservabilityRepo
 } from "../protocol/agent.protocol";
-import { CSNewRelicProviderInfo } from "../protocol/api.protocol";
+import { CSMe, CSNewRelicProviderInfo } from "../protocol/api.protocol";
 import { CodeStreamSession } from "../session";
 import { Dates, log, lspHandler, lspProvider } from "../system";
 import { Strings } from "../system/string";
@@ -102,6 +103,7 @@ class AccessTokenError extends Error {
 export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProviderInfo> {
 	private _newRelicUserId: number | undefined = undefined;
 	private _memoizedBuildRepoRemoteVariants: any;
+	private _codeStreamUser: CSMe | undefined = undefined;
 
 	constructor(session: CodeStreamSession, config: ThirdPartyProviderConfig) {
 		super(session, config);
@@ -164,6 +166,8 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 		// delete the graphql client so it will be reconstructed if a new token is applied
 		delete this._client;
 		delete this._newRelicUserId;
+		delete this._applicationEntitiesCache;
+		delete this._codeStreamUser;
 
 		try {
 			// remove these when a user disconnects -- don't want them lingering around
@@ -171,7 +175,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			await users.updatePreferences({
 				preferences: {
 					observabilityRepoEntities: [],
-					methodLevelTelemetryRepoEntities: []
+					methodLevelTelemetryRepoEntities: {}
 				}
 			});
 		} catch (ex) {
@@ -429,15 +433,25 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			// while (true) {
 
 			if (request.appName != null) {
+				let statements = [`name LIKE '${Strings.sanitizeGraphqlValue(request.appName)}'`];
+				const splitAppName = request.appName.split(/[\-\_]+/);
+				if (splitAppName.length > 1) {
+					for (let i = 0; i < splitAppName.length; i++) {
+						const val = splitAppName[i];
+						if (val && val.length < 2) continue;
+						statements.push(`name LIKE '${Strings.sanitizeGraphqlValue(val)}'`);
+					}
+				}
 				// try to find the entity based on the app / remote name
 				const response = await this.query<any>(
 					`query  {
 				actor {
-				  entitySearch(query: "type='APPLICATION' and name LIKE '${Strings.sanitizeGraphqlValue(
-						request.appName
-					)}'", sortBy:MOST_RELEVANT) {
+				  entitySearch(query: "type='APPLICATION' and (${statements.join(" or ")})", sortBy:MOST_RELEVANT) {
 					results {
 					  entities {
+						account {
+							name
+						}
 						guid
 						name
 					  }
@@ -448,12 +462,14 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				);
 
 				results = results.concat(
-					response.actor.entitySearch.results.entities.map((_: any) => {
-						return {
-							guid: _.guid,
-							name: _.name
-						};
-					})
+					response.actor.entitySearch.results.entities.map(
+						(_: { guid: string; name: string; account: { name: String } }) => {
+							return {
+								guid: _.guid,
+								name: `${_.name} (${_.account.name})`
+							};
+						}
+					)
 				);
 			}
 
@@ -464,6 +480,9 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				results(cursor:$cursor) {
 				 nextCursor
 				  entities {
+					account {
+						name
+					}
 					guid
 					name
 				  }
@@ -477,12 +496,14 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			);
 
 			results = results.concat(
-				response.actor.entitySearch.results.entities.map((_: any) => {
-					return {
-						guid: _.guid,
-						name: _.name
-					};
-				})
+				response.actor.entitySearch.results.entities.map(
+					(_: { guid: string; name: string; account: { name: String } }) => {
+						return {
+							guid: _.guid,
+							name: `${_.name} (${_.account.name})`
+						};
+					}
+				)
 			);
 			// nextCursor = response.actor.entitySearch.results.nextCursor;
 			// i++;
@@ -494,9 +515,10 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			// 	});
 			// }
 			// }
-			results.sort((a, b) => a.name.localeCompare(b.name));
 
 			results = [...new Map(results.map(item => [item["guid"], item])).values()];
+			results.sort((a, b) => a.name.localeCompare(b.name));
+
 			this._applicationEntitiesCache = {
 				entities: results
 			};
@@ -720,7 +742,8 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 								accountId: entity.account?.id,
 								accountName: entity.account?.name || "Account",
 								entityGuid: entity.guid,
-								entityName: entity.name
+								entityName: entity.name,
+								tags: entity.tags
 							} as EntityAccount;
 						})
 						.filter(Boolean)
@@ -1584,6 +1607,77 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 
 	private _languageSupport = new Set<string>(["python"]);
 
+	getGoldenSignalsEntity(
+		codestreamUser: CSMe,
+		observabilityRepo: ObservabilityRepo
+	): EntityAccount {
+		let entity: EntityAccount | undefined;
+		if (observabilityRepo.entityAccounts.length > 1) {
+			try {
+				// first, to get from preferences
+				if (codestreamUser.preferences) {
+					const methodLevelTelemetryRepoEntities =
+						codestreamUser.preferences.methodLevelTelemetryRepoEntities || {};
+					const methodLevelTelemetryRepoEntity =
+						methodLevelTelemetryRepoEntities[observabilityRepo.repoId];
+					if (methodLevelTelemetryRepoEntity) {
+						const foundEntity = observabilityRepo.entityAccounts.find(
+							_ => _.entityGuid === methodLevelTelemetryRepoEntity
+						);
+						if (foundEntity) {
+							entity = foundEntity;
+						}
+					}
+				}
+				if (!entity) {
+					let done = false;
+					for (const entityAccount of observabilityRepo.entityAccounts) {
+						if (entityAccount.tags) {
+							// second, try to find something production-like based on tags (recommended NR way)
+							for (const tag of entityAccount.tags) {
+								if (
+									["env", "environment", "Environment"].includes(tag.key) &&
+									["prod", "production", "Production", "PRODUCTION"].find(value =>
+										tag.values.includes(value)
+									)
+								) {
+									entity = entityAccount;
+									done = true;
+									break;
+								}
+							}
+						}
+						// third, try to find something production-like based on name
+						if (
+							["prod", "production", "Production", "PRODUCTION"].find(
+								_ => entityAccount.entityName.indexOf(_) > -1
+							)
+						) {
+							entity = entityAccount;
+							done = true;
+							break;
+						}
+						if (done) {
+							break;
+						}
+					}
+				}
+			} catch (ex) {
+				console.warn(ex);
+			}
+			if (!entity) {
+				Logger.warn("More than one NR entity, selecting first", {
+					entity: observabilityRepo.entityAccounts[0]
+				});
+				entity = observabilityRepo.entityAccounts[0];
+			}
+		} else {
+			entity = observabilityRepo.entityAccounts[0];
+		}
+
+		return entity;
+	}
+
 	@lspHandler(GetFileLevelTelemetryRequestType)
 	@log()
 	async getFileLevelTelemetry(
@@ -1595,9 +1689,27 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 
 		if (!this._languageSupport.has(request.languageId)) return undefined;
 
-		const { git } = SessionContainer.instance();
+		const { users, git } = SessionContainer.instance();
+		if (!this._codeStreamUser) {
+			this._codeStreamUser = (await users.getMe()).user;
+		}
+
+		const isConnected = super.isConnected(this._codeStreamUser);
+		if (!isConnected) {
+			return {
+				isConnected: isConnected,
+				error: {
+					message: "Not connected to New Relic",
+					type: "NOT_CONNECTED"
+				}
+			} as any;
+		}
+
 		const repoForFile = await git.getRepositoryByFilePath(request.filePath);
 		if (!repoForFile?.id) return undefined;
+
+		const remotes = await repoForFile.getRemotes();
+		const remote = remotes.map(_ => _.uri.toString())[0];
 
 		let relativeFilePath = relative(repoForFile.path, request.filePath);
 		if (relativeFilePath[0] !== sep) {
@@ -1605,37 +1717,24 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 		}
 
 		const observabilityRepo = await this.getObservabilityEntityRepos(repoForFile.id);
-		if (!observabilityRepo || !observabilityRepo.entityAccounts) {
+		if (!observabilityRepo) {
 			return undefined;
 		}
-
-		let entity: EntityAccount | undefined;
-		if (observabilityRepo.entityAccounts.length > 1) {
-			const { users } = SessionContainer.instance();
-			try {
-				let meUser = await users.getMe();
-				const methodLevelTelemetryRepoEntities =
-					meUser.user.preferences?.methodLevelTelemetryRepoEntities || {};
-				const methodLevelTelemetryRepoEntity =
-					methodLevelTelemetryRepoEntities[observabilityRepo.repoId];
-				if (methodLevelTelemetryRepoEntity) {
-					const foundEntity = observabilityRepo.entityAccounts.find(
-						_ => _.entityGuid === methodLevelTelemetryRepoEntity
-					);
-					if (foundEntity) {
-						entity = foundEntity;
-					}
+		if (!observabilityRepo.entityAccounts?.length) {
+			return {
+				repo: {
+					id: repoForFile.id,
+					name: this.getRepoName(repoForFile.folder),
+					remote: remote
+				},
+				error: {
+					message: "",
+					type: "NOT_ASSOCIATED"
 				}
-			} catch {}
-			if (!entity) {
-				Logger.warn("More than one NR entity, selecting first", {
-					entity: observabilityRepo.entityAccounts[0]
-				});
-				entity = observabilityRepo.entityAccounts[0];
-			}
-		} else {
-			entity = observabilityRepo.entityAccounts[0];
+			} as any;
 		}
+
+		const entity = this.getGoldenSignalsEntity(this._codeStreamUser, observabilityRepo);
 
 		const newRelicAccountId = entity.accountId;
 		const newRelicEntityGuid = entity.entityGuid;
@@ -1719,10 +1818,9 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				averageDurationResponse?.actor?.account?.nrql?.metadata?.timeWindow?.begin ||
 				errorRateResponse?.actor?.account?.nrql?.metadata?.timeWindow?.begin;
 
-			// TODO
-			// let transactionId = "";
 			return {
 				codeNamespace: request.codeNamespace!,
+				isConnected: isConnected,
 				throughput: throughputResponse ? throughputResponse.actor.account.nrql.results : [],
 				averageDuration: averageDurationResponse
 					? averageDurationResponse.actor.account.nrql.results
@@ -1744,7 +1842,8 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				newRelicEntityAccounts: observabilityRepo.entityAccounts,
 				repo: {
 					id: repoForFile.id,
-					name: this.getRepoName(repoForFile.folder)
+					name: this.getRepoName(repoForFile.folder),
+					remote: remote
 				},
 				relativeFilePath: relativeFilePath,
 				newRelicUrl: `${this.productUrl}/redirect/entity/${newRelicEntityGuid}`
@@ -1828,21 +1927,21 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			return undefined;
 		}
 
-		if (!repo.hasRepoAssociation) {
-			ContextLogger.warn("Missing repo association", {
-				repo: repo
-			});
+		// if (!repo.hasRepoAssociation) {
+		// 	ContextLogger.warn("Missing repo association", {
+		// 		repo: repo
+		// 	});
 
-			return undefined;
-		}
+		// 	return undefined;
+		// }
 
-		const entityLength = repo.entityAccounts.length;
-		if (!entityLength) {
-			ContextLogger.warn("Missing entities", {
-				repo: repo
-			});
-			return undefined;
-		}
+		// const entityLength = repo.entityAccounts.length;
+		// if (!entityLength) {
+		// 	ContextLogger.warn("Missing entities", {
+		// 		repo: repo
+		// 	});
+		// 	return undefined;
+		// }
 		return repo;
 	}
 	private async getGoldenMetricsQueries(
