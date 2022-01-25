@@ -166,7 +166,6 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 		// delete the graphql client so it will be reconstructed if a new token is applied
 		delete this._client;
 		delete this._newRelicUserId;
-		delete this._applicationEntitiesCache;
 		delete this._codeStreamUser;
 
 		try {
@@ -411,8 +410,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 		}
 		return undefined;
 	}
-
-	private _applicationEntitiesCache: GetObservabilityEntitiesResponse | undefined = undefined;
+	private _applicationEntitiesCache: { [key: string]: GetObservabilityEntitiesResponse } = {};
 
 	@lspHandler(GetObservabilityEntitiesRequestType)
 	@log({
@@ -421,16 +419,21 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 	async getEntities(
 		request: GetObservabilityEntitiesRequest
 	): Promise<GetObservabilityEntitiesResponse> {
+		const response = {
+			entities: []
+		} as GetObservabilityEntitiesResponse;
 		try {
+			const key = request.appName || "";
 			if (this._applicationEntitiesCache != null) {
-				ContextLogger.debug("query entities (from cache)");
-				return this._applicationEntitiesCache;
+				const cached = this._applicationEntitiesCache[key];
+				if (cached) {
+					ContextLogger.debug("query entities (from cache)");
+					return cached;
+				}
 			}
 
 			let results: { guid: string; name: string }[] = [];
 			const nextCursor: any = undefined;
-			// let i = 0;
-			// while (true) {
 
 			if (request.appName != null) {
 				let statements = [`name LIKE '${Strings.sanitizeGraphqlValue(request.appName)}'`];
@@ -439,27 +442,27 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 					for (let i = 0; i < splitAppName.length; i++) {
 						const val = splitAppName[i];
 						if (val && val.length < 2) continue;
+
 						statements.push(`name LIKE '${Strings.sanitizeGraphqlValue(val)}'`);
 					}
 				}
 				// try to find the entity based on the app / remote name
-				const response = await this.query<any>(
-					`query  {
-				actor {
-				  entitySearch(query: "type='APPLICATION' and (${statements.join(" or ")})", sortBy:MOST_RELEVANT) {
-					results {
-					  entities {
-						account {
+				const query = `query  {
+					actor {
+					  entitySearch(query: "type='APPLICATION' and (${statements.join(" or ")})", sortBy:MOST_RELEVANT) {
+						results {
+						  entities {
+							account {
+								name
+							}
+							guid
 							name
+						  }
 						}
-						guid
-						name
 					  }
 					}
-				  }
-				}
-			  }`
-				);
+				  }`;
+				const response = await this.query<any>(query);
 
 				results = results.concat(
 					response.actor.entitySearch.results.entities.map(
@@ -473,7 +476,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				);
 			}
 
-			const response = await this.query<any>(
+			const r = await this.query<any>(
 				`query search($cursor:String) {
 			actor {
 			  entitySearch(query: "type='APPLICATION'", sortBy:MOST_RELEVANT) {
@@ -496,7 +499,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			);
 
 			results = results.concat(
-				response.actor.entitySearch.results.entities.map(
+				r.actor.entitySearch.results.entities.map(
 					(_: { guid: string; name: string; account: { name: String } }) => {
 						return {
 							guid: _.guid,
@@ -505,26 +508,15 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 					}
 				)
 			);
-			// nextCursor = response.actor.entitySearch.results.nextCursor;
-			// i++;
-			// if (!nextCursor) {
-			// 	break;
-			// } else {
-			// 	ContextLogger.log("query entities ", {
-			// 		i: i
-			// 	});
-			// }
-			// }
 
 			results = [...new Map(results.map(item => [item["guid"], item])).values()];
 			results.sort((a, b) => a.name.localeCompare(b.name));
 
-			this._applicationEntitiesCache = {
-				entities: results
-			};
-			return {
-				entities: results
-			};
+			response.entities = results;
+
+			this._applicationEntitiesCache[key] = response;
+
+			return response;
 		} catch (ex) {
 			ContextLogger.error(ex, "getEntities");
 		}
