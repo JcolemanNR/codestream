@@ -1623,8 +1623,18 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				if (!entity) {
 					let done = false;
 					for (const entityAccount of observabilityRepo.entityAccounts) {
+						// second, try to find something production-like based on name
+						if (
+							["prod", "production", "Production", "PRODUCTION"].find(
+								_ => entityAccount.entityName.indexOf(_) > -1
+							)
+						) {
+							entity = entityAccount;
+							done = true;
+							break;
+						}
 						if (entityAccount.tags) {
-							// second, try to find something production-like based on tags (recommended NR way)
+							// third, try to find something production-like based on tags (recommended NR way)
 							for (const tag of entityAccount.tags) {
 								if (
 									["env", "environment", "Environment"].includes(tag.key) &&
@@ -1638,16 +1648,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 								}
 							}
 						}
-						// third, try to find something production-like based on name
-						if (
-							["prod", "production", "Production", "PRODUCTION"].find(
-								_ => entityAccount.entityName.indexOf(_) > -1
-							)
-						) {
-							entity = entityAccount;
-							done = true;
-							break;
-						}
+
 						if (done) {
 							break;
 						}
