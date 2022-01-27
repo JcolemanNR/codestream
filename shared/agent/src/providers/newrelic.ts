@@ -1439,7 +1439,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				: `metricTimesliceName LIKE '${request.codeNamespace}%'`
 		} 
 		FACET metricTimesliceName 
-		SINCE 1 hour AGO 
+		SINCE 30 minutes AGO 
 		LIMIT 100`
 			.replace(/\n/g, "")
 			.replace(/\t/g, "");
@@ -1481,7 +1481,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 						.map(z => "'WebTransaction/" + z + "'")
 						.join(",")})`
 				: `metricTimesliceName LIKE '${request.codeNamespace}%'`
-		} FACET metricTimesliceName SINCE 1 hour AGO LIMIT 100`;
+		} FACET metricTimesliceName SINCE 30 minutes AGO LIMIT 100`;
 		const query = `query GetMethodAverageDuration($accountId:Int!) {
 	actor {
 		account(id: $accountId) {
@@ -1518,7 +1518,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 						.map(z => "'Errors/WebTransaction/" + z + "'")
 						.join(",")})`
 				: `metricTimesliceName LIKE '${request.codeNamespace}%'`
-		} FACET metricTimesliceName SINCE 1 hour AGO LIMIT 100`;
+		} FACET metricTimesliceName SINCE 30 minutes AGO LIMIT 100`;
 
 		const query = `query GetMethodErrorRate($accountId:Int!) {
 			actor {
@@ -1552,7 +1552,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			request.codeFilePath
 				? `code.filepath='${request.codeFilePath}'`
 				: `code.namespace like '${request.codeNamespace}%'`
-		}  SINCE 1 hour AGO LIMIT 100`;
+		}  SINCE 30 minutes AGO LIMIT 100`;
 		const query = `query GetSpans($accountId:Int!) {
 			actor {
 				account(id: $accountId) {
