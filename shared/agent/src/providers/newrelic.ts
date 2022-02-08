@@ -1790,6 +1790,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 				newRelicEntityGuid,
 				codeFilePath: relativeFilePath
 			});
+
 			const groupedByNamespaceAndMethod = spans ? _groupBy(spans, _ => _.name) : {};
 			const metricTimesliceNames = Object.keys(groupedByNamespaceAndMethod);
 
@@ -2091,10 +2092,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 							["Response time (ms)"]: r["Response time (ms)"]
 								? r["Response time (ms)"].toFixed(2)
 								: null,
-							endDate: `${date.toLocaleDateString(undefined, {
-								month: "short",
-								day: "numeric"
-							})} ${date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`
+							endDate: date
 						};
 					})
 				};
