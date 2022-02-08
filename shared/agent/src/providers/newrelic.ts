@@ -1723,7 +1723,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 
 		const { users, git } = SessionContainer.instance();
 		if (!this._codeStreamUser) {
-			this._codeStreamUser = (await users.getMe()).user;
+			this._codeStreamUser = await users.getMe();
 		}
 
 		const isConnected = super.isConnected(this._codeStreamUser);
@@ -1777,7 +1777,7 @@ export class NewRelicProvider extends ThirdPartyIssueProviderBase<CSNewRelicProv
 			} as any;
 		}
 
-		const entity = this.getGoldenSignalsEntity(this._codeStreamUser, observabilityRepo);
+		const entity = this.getGoldenSignalsEntity(this._codeStreamUser!, observabilityRepo);
 
 		const newRelicAccountId = entity.accountId;
 		const newRelicEntityGuid = entity.entityGuid;
