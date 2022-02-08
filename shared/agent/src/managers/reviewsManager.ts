@@ -4,15 +4,13 @@ import * as fs from "fs";
 import { flatten } from "lodash-es";
 import { decompressFromBase64 } from "lz-string";
 import * as path from "path";
+import { CodeStreamSession } from "session";
 import { URI } from "vscode-uri";
 import { MessageType } from "../api/apiProvider";
-import { Container, SessionContainer } from "../container";
+import { Container, SessionContainer, SessionServiceContainer } from "../container";
 import { EMPTY_TREE_SHA, GitCommit, GitRemote, GitRepository } from "../git/gitService";
 import { Logger } from "../logger";
 import {
-	CheckPullRequestBranchPreconditionsRequest,
-	CheckPullRequestBranchPreconditionsRequestType,
-	CheckPullRequestBranchPreconditionsResponse,
 	CheckPullRequestPreconditionsRequest,
 	CheckPullRequestPreconditionsRequestType,
 	CheckPullRequestPreconditionsResponse,
@@ -102,6 +100,12 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			version,
 			path
 		};
+	}
+	/**
+	 *
+	 */
+	constructor(session: CodeStreamSession) {
+		super(session);
 	}
 
 	private currentBranches = new Map<string, string | undefined>();
@@ -578,108 +582,17 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 		};
 	}
 
-	@lspHandler(CheckPullRequestBranchPreconditionsRequestType)
-	@log()
-	async checkPullRequestBranchPreconditions(
-		request: CheckPullRequestBranchPreconditionsRequest
-	): Promise<CheckPullRequestBranchPreconditionsResponse> {
-		const { git } = SessionContainer.instance();
-		try {
-			let repo: GitRepository | undefined = undefined;
-			if (request.reviewId) {
-				const review = await this.getById(request.reviewId);
-				repo = await git.getRepositoryById(review.reviewChangesets[0].repoId);
-			} else if (request.repoId) {
-				repo = await git.getRepositoryById(request.repoId);
-			} else {
-				return {
-					success: false,
-					error: {
-						type: "REPO_NOT_FOUND"
-					}
-				};
-			}
-
-			if (!repo) {
-				return {
-					success: false,
-					error: {
-						type: "REPO_NOT_FOUND"
-					}
-				};
-			}
-
-			const { providerRegistry, users } = SessionContainer.instance();
-			const user = await users.getMe();
-			if (!user) {
-				Logger.warn("Could not find CSMe user");
-				return {
-					success: false
-				};
-			}
-
-			let remoteUrl = "";
-			let providerId = "";
-
-			const connectedProviders = await providerRegistry.getConnectedPullRequestProviders(user);
-
-			for (const provider of connectedProviders) {
-				const id = provider.getConfig().id;
-				if (id !== request.providerId) continue;
-				providerId = id;
-
-				const providerRepo = await repo.getPullRequestProvider(user, connectedProviders);
-
-				if (providerRepo?.provider && providerRepo?.remotes?.length > 0) {
-					remoteUrl = providerRepo.remotes[0].webUrl;
-					const providerRepoInfo = await providerRegistry.getRepoInfo({
-						providerId: providerId,
-						remote: remoteUrl
-					});
-					if (providerRepoInfo) {
-						if (providerRepoInfo.pullRequests && request.baseRefName && request.headRefName) {
-							const existingPullRequest = providerRepoInfo.pullRequests.find(
-								(_: any) =>
-									_.baseRefName === request.baseRefName && _.headRefName === request.headRefName
-							);
-							if (existingPullRequest) {
-								return {
-									success: false,
-									error: {
-										type: "ALREADY_HAS_PULL_REQUEST",
-										url: existingPullRequest.url
-									}
-								};
-							}
-						}
-						// break out of providers loop
-						break;
-					}
-				}
-			}
-
-			return {
-				success: true,
-				remote: remoteUrl,
-				providerId: providerId
-			};
-		} catch (ex) {
-			return {
-				success: false,
-				error: {
-					message: typeof ex === "string" ? ex : ex.message,
-					type: "UNKNOWN"
-				}
-			};
-		}
-	}
-
 	@lspHandler(CheckPullRequestPreconditionsRequestType)
 	@log()
 	async checkPullRequestPreconditions(
-		request: CheckPullRequestPreconditionsRequest
+		request: CheckPullRequestPreconditionsRequest,
+		// @ts-ignore
+		token: any,
+		// used in tests
+		serviceLocator: SessionServiceContainer | undefined = undefined
 	): Promise<CheckPullRequestPreconditionsResponse> {
-		const { git, providerRegistry, session } = SessionContainer.instance();
+		const { git, providerRegistry, users } = serviceLocator || SessionContainer.instance();
+
 		let warning = undefined;
 		let remotes: GitRemote[] | undefined;
 		let repo: any;
@@ -737,10 +650,12 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			const headRefName = request.headRefName || (review && review.reviewChangesets[0].branch);
 
 			let success = false;
-			let remoteUrl;
-			let providerId;
-
-			const user = await SessionContainer.instance().users.getMe();
+			let isFork = undefined;
+			let nameWithOwner = undefined;
+			let remoteUrl: string | undefined = undefined;
+			let providerId: string | undefined = undefined;
+			let providerName: string | undefined = undefined;
+			const user = await users.getMe();
 			if (!user) {
 				Logger.warn("Could not find CSMe user");
 				return {
@@ -757,7 +672,7 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 				remoteUrl = providerRepo.remotes[0].webUrl;
 				const providerRepoInfo = await providerRegistry.getRepoInfo({
 					providerId: providerRepo.providerId,
-					remote: remoteUrl
+					remote: remoteUrl!
 				});
 				if (providerRepoInfo) {
 					if (providerRepoInfo.error) {
@@ -769,7 +684,7 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 
 					providerRepoDefaultBranch = providerRepoInfo.defaultBranch;
 					baseRefName = baseRefName || providerRepoDefaultBranch;
-					if (providerRepoInfo.pullRequests) {
+					if (providerRepoInfo.pullRequests?.length) {
 						if (baseRefName && headRefName) {
 							const existingPullRequest = providerRepoInfo.pullRequests.find(
 								(_: any) => _.baseRefName === baseRefName && _.headRefName === headRefName
@@ -779,7 +694,12 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 									success: false,
 									error: {
 										type: "ALREADY_HAS_PULL_REQUEST",
-										url: existingPullRequest.url
+										url: existingPullRequest.url,
+										id: existingPullRequest.id
+									},
+									provider: {
+										id: providerRepo.providerId,
+										name: providerRepo.name
 									}
 								};
 							}
@@ -787,26 +707,24 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 					}
 					success = true;
 					providerId = providerRepo.providerId;
-					isProviderConnected = true;
+					providerName = providerRepo.providerName;
 					remotes = providerRepo.remotes;
+					isFork = providerRepoInfo.isFork;
+					nameWithOwner = providerRepoInfo.nameWithOwner;
 				}
 			}
 
 			if (!success) {
-				const user = await SessionContainer.instance().users.getMe();
-				if (user) {
-					const connectedProviders = await providerRegistry.getConnectedPullRequestProviders(user);
-					if (connectedProviders && connectedProviders.length) {
-						return {
-							success: false,
-							error: {
-								type: "REQUIRES_PROVIDER_REPO",
-								message: `To create a pull request you'll need to open a ${connectedProviders
-									.map(_ => _.displayName)
-									.join(" or ")} repository`
-							}
-						};
-					}
+				if (user && connectedProviders && connectedProviders.length) {
+					return {
+						success: false,
+						error: {
+							type: "REQUIRES_PROVIDER_REPO",
+							message: `To create a pull request you'll need to open a ${connectedProviders
+								.map(_ => _.displayName)
+								.join(" or ")} repository`
+						}
+					};
 				}
 				// if we couldn't match a provider against a remote or there are multiple
 				// we need the user to choose which provider.
@@ -833,21 +751,26 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 				remoteBranch = branchRemote;
 			}
 
-			const pullRequestTemplate =
-				(await xfs.readText(path.join(repo.path, "pull_request_template.md"))) ||
-				(await xfs.readText(path.join(repo.path, "PULL_REQUEST_TEMPLATE.md"))) ||
-				(await xfs.readText(path.join(repo.path, "docs/pull_request_template.md"))) ||
-				(await xfs.readText(path.join(repo.path, "docs/PULL_REQUEST_TEMPLATE.md"))) ||
-				(await xfs.readText(path.join(repo.path, ".github/pull_request_template.md"))) ||
-				(await xfs.readText(path.join(repo.path, ".github/PULL_REQUEST_TEMPLATE.md"))) ||
-				(await xfs.readText(path.join(repo.path, ".gitlab/merge_request_template.md")));
-
 			let pullRequestTemplateNames: string[] = [];
-			const templatePath = path.join(repo.path, ".gitlab", "merge_request_templates");
-			if (fs.existsSync(templatePath) && fs.lstatSync(templatePath).isDirectory()) {
-				pullRequestTemplateNames = (await fs.readdirSync(templatePath))
-					.filter(filepath => filepath.endsWith(".md"))
-					.map(filepath => filepath.replace(/\.md$/, ""));
+			let pullRequestTemplatePath;
+			let pullRequestTemplate;
+			if (repo.path) {
+				pullRequestTemplate =
+					(await xfs.readText(path.join(repo.path, "pull_request_template.md"))) ||
+					(await xfs.readText(path.join(repo.path, "PULL_REQUEST_TEMPLATE.md"))) ||
+					(await xfs.readText(path.join(repo.path, "docs/pull_request_template.md"))) ||
+					(await xfs.readText(path.join(repo.path, "docs/PULL_REQUEST_TEMPLATE.md"))) ||
+					(await xfs.readText(path.join(repo.path, ".github/pull_request_template.md"))) ||
+					(await xfs.readText(path.join(repo.path, ".github/PULL_REQUEST_TEMPLATE.md"))) ||
+					(await xfs.readText(path.join(repo.path, ".gitlab/merge_request_template.md")));
+
+				let templatePath = path.join(repo.path, ".gitlab", "merge_request_templates");
+				if (fs.existsSync(templatePath) && fs.lstatSync(templatePath).isDirectory()) {
+					pullRequestTemplatePath = templatePath;
+					pullRequestTemplateNames = (await fs.readdirSync(templatePath))
+						.filter(filepath => filepath.endsWith(".md"))
+						.map(filepath => filepath.replace(/\.md$/, ""));
+				}
 			}
 
 			const baseBranchRemote = await git.getBranchRemote(repo.path, baseRefName!);
@@ -859,32 +782,46 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 
 			return {
 				success: success,
-				repoId: repo.id,
-				remoteUrl: remoteUrl,
-				providerId: providerId,
-				pullRequestTemplate,
-				pullRequestTemplateNames,
-				pullRequestTemplatePath: templatePath,
-				remotes: remotes,
-				origins: originNames,
-				remoteBranch: remoteBranch,
-				pullRequestProvider: {
-					isConnected: isProviderConnected,
-					defaultBranch: providerRepoDefaultBranch
+				repo: {
+					id: repo.id,
+					remoteUrl: remoteUrl,
+					remotes: remotes,
+					origins: originNames,
+					remoteBranch: remoteBranch,
+					branch: headRefName,
+					branches: branches!.branches,
+					remoteBranches: remoteBranches
+						? remoteBranches.branchesMeta.filter(_ => _.branch.indexOf("HEAD ->") === -1)
+						: undefined,
+					commitsBehindOriginHeadBranch: commitsBehindOrigin
 				},
+				provider: {
+					id: providerId,
+					name: providerName,
+					isConnected: isProviderConnected,
+					pullRequestTemplate: pullRequestTemplate,
+					pullRequestTemplateNames,
+					pullRequestTemplatePath: pullRequestTemplatePath,
+					pullRequestTemplateLinesCount: Math.max(
+						(pullRequestTemplate || "").split("\n").length,
+						8
+					),
+					repo: {
+						defaultBranch: providerRepoDefaultBranch,
+						isFork,
+						nameWithOwner
+					}
+				},
+
 				review: {
 					title: review ? review.title : "",
 					text: review ? review.text : ""
 				},
-				branch: headRefName,
-				branches: branches!.branches,
-				remoteBranches: remoteBranches
-					? remoteBranches.branchesMeta.filter(_ => _.branch.indexOf("HEAD ->") === -1)
-					: undefined,
-				commitsBehindOriginHeadBranch: commitsBehindOrigin,
+
 				warning: warning
 			};
 		} catch (ex) {
+			console.warn(ex);
 			return {
 				success: false,
 				error: {

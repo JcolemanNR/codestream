@@ -931,23 +931,25 @@ export class GitHubProvider extends ThirdPartyIssueProviderBase<CSGitHubProvider
 					}
 					repository(owner:$owner, name:$name) {
 				   		id
+						isFork
 				   		defaultBranchRef {
 							name
 				   		}
-				   pullRequests(first: 25, orderBy: {field: CREATED_AT, direction: DESC}, states: OPEN) {
-					totalCount
-					nodes {
-					  id
-					  url
-					  title
-					  state
-					  createdAt
-					  baseRefName
-					  headRefName
+						nameWithOwner
+						pullRequests(first: 25, orderBy: {field: CREATED_AT, direction: DESC}, states: OPEN) {
+							totalCount
+							nodes {
+								id
+								url
+								title
+								state
+								createdAt
+								baseRefName
+								headRefName
+							}
+						}
 					}
-				  }
-				}
-			  }
+			  	}
 			  `,
 				{
 					owner: owner,
@@ -956,6 +958,8 @@ export class GitHubProvider extends ThirdPartyIssueProviderBase<CSGitHubProvider
 			);
 			return {
 				id: response.repository.id,
+				isFork: response.repository.isFork,
+				nameWithOwner: response.repository.nameWithOwner,
 				defaultBranch: response.repository.defaultBranchRef.name,
 				pullRequests: response.repository.pullRequests.nodes
 			};
@@ -1046,7 +1050,8 @@ export class GitHubProvider extends ThirdPartyIssueProviderBase<CSGitHubProvider
 				const result = await this.getForkedRepos({ remote: response.repository.parent.url }, true);
 				return {
 					parent: result.parent,
-					forks: result.forks
+					forks: result.forks,
+					self: response.repository
 				};
 			}
 
@@ -1057,10 +1062,11 @@ export class GitHubProvider extends ThirdPartyIssueProviderBase<CSGitHubProvider
 			});
 			return {
 				parent: response.repository,
-				forks
+				forks: forks,
+				self: response.repository
 			};
 		} catch (ex) {
-			Logger.error(ex, "GitHub: getRepoInfo", {
+			Logger.error(ex, "GitHub: getForkedRepos", {
 				remote: request.remote
 			});
 			let errorMessage =

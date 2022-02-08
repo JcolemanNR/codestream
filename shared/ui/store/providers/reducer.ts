@@ -49,13 +49,19 @@ export interface LabelHash {
 	PullRequests: string;
 	Pullrequest: string;
 	pullrequest: string;
+	pullrequests: string;
 	PR: string;
 	PRs: string;
 	pr: string;
 	AddSingleComment: string;
+	repoBaseLabel: string;
+	repoBranchBaseLabel;
+	repoHeadLabel: string;
+	repoBranchHeadLabel: string;
+	icon?: string;
 }
 
-const MRLabel = {
+const MRLabel: LabelHash = {
 	PullRequest: "Merge Request",
 	PullRequests: "Merge Requests",
 	Pullrequest: "Merge request",
@@ -64,10 +70,14 @@ const MRLabel = {
 	PR: "MR",
 	PRs: "MRs",
 	pr: "mr",
-	AddSingleComment: "Add comment now"
+	AddSingleComment: "Add comment now",
+	repoBaseLabel: "target",
+	repoBranchBaseLabel: "target",
+	repoHeadLabel: "source",
+	repoBranchHeadLabel: "source"
 };
 
-const PRLabel = {
+const PRLabel: LabelHash = {
 	PullRequest: "Pull Request",
 	PullRequests: "Pull Requests",
 	Pullrequest: "Pull request",
@@ -76,7 +86,11 @@ const PRLabel = {
 	PR: "PR",
 	PRs: "PRs",
 	pr: "pr",
-	AddSingleComment: "Add single comment"
+	AddSingleComment: "Add single comment",
+	repoBaseLabel: "base",
+	repoBranchBaseLabel: "base",
+	repoHeadLabel: "head",
+	repoBranchHeadLabel: "compare"
 };
 
 export const getPRLabel = createSelector(
@@ -90,7 +104,13 @@ export const getPRLabel = createSelector(
 );
 
 export const getPRLabelForProvider = (provider: string): LabelHash => {
-	return provider.toLocaleLowerCase().startsWith("gitlab") ? MRLabel : PRLabel;
+	// let icon;
+	// if (provider) {
+	// 	const { name } = PROVIDER_MAPPINGS[provider];
+	// }
+	return provider.toLocaleLowerCase().startsWith("gitlab")
+		? { ...MRLabel, icon: "" }
+		: { ...PRLabel, icon: "" };
 };
 
 export const isConnected = (

@@ -302,33 +302,6 @@ export const CheckReviewPreconditionsRequestType = new RequestType<
 	void
 >("codestream/review/checkPreconditions");
 
-export interface CheckPullRequestBranchPreconditionsRequest {
-	reviewId?: string; // either a reviewId or repoId need to be passed in
-	repoId?: string;
-	providerId: string;
-	headRefName?: string;
-	baseRefName?: string;
-}
-
-export interface CheckPullRequestBranchPreconditionsResponse {
-	success: boolean;
-	remote?: string;
-	providerId?: string;
-
-	error?: {
-		message?: string;
-		type?: "REPO_NOT_FOUND" | "ALREADY_HAS_PULL_REQUEST" | "UNKNOWN" | "PROVIDER" | string;
-		url?: string;
-	};
-}
-
-export const CheckPullRequestBranchPreconditionsRequestType = new RequestType<
-	CheckPullRequestBranchPreconditionsRequest,
-	CheckPullRequestBranchPreconditionsResponse,
-	void,
-	void
->("codestream/review/pr/branch/checkPreconditions");
-
 export interface CheckPullRequestPreconditionsRequest {
 	reviewId?: string;
 	repoId?: string;
@@ -341,20 +314,35 @@ export interface CheckPullRequestPreconditionsRequest {
 export interface CheckPullRequestPreconditionsResponse {
 	success: boolean;
 	review?: Pick<CSReview, "title" | "text">;
-	repoId?: string;
-	remoteUrl?: string;
-	remoteBranch?: string;
-	providerId?: string;
-	remotes?: any[];
-	origins?: string[];
-	pullRequestProvider?: { defaultBranch?: string; isConnected: boolean };
-	branch?: string;
-	branches?: string[];
-	remoteBranches?: { remote?: string; branch: string }[];
-	pullRequestTemplate?: string;
-	pullRequestTemplateNames?: string[];
-	pullRequestTemplatePath?: string;
-	commitsBehindOriginHeadBranch?: string;
+	repo?: {
+		id?: string;
+		remoteUrl?: string;
+		branch?: string;
+		branches?: string[];
+		remoteBranch?: string;
+
+		remoteBranches?: { remote?: string; branch: string }[];
+		commitsBehindOriginHeadBranch?: string;
+		origins?: string[];
+		remotes?: any[];
+	};
+	provider?: {
+		id?: string;
+		name?: string;
+		isConnected?: boolean;
+
+		pullRequestTemplate?: string;
+		pullRequestTemplateNames?: string[];
+		pullRequestTemplatePath?: string;
+		pullRequestTemplateLinesCount?: number;
+
+		repo?: {
+			defaultBranch?: string;
+			isFork?: boolean;
+			nameWithOwner?: string;
+		};
+	};
+
 	warning?: {
 		message?: string;
 		type?: "ALREADY_HAS_PULL_REQUEST" | string;
@@ -385,12 +373,18 @@ export const CheckPullRequestPreconditionsRequestType = new RequestType<
 export interface CreatePullRequestRequest {
 	/** if a reviewId isn't provided, you must provide a repoId */
 	reviewId?: string;
+
+	// branchName?: string;
 	repoId?: string;
 	providerId: string;
 	title: string;
 	description?: string;
+
 	baseRefName: string;
+
+	// review branch
 	headRefName: string;
+
 	providerRepositoryId?: string /* for use across forks */;
 	remote: string /* to look up the repo ID on the provider */;
 	remoteName?: string;

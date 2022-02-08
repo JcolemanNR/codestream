@@ -113,6 +113,7 @@ export class GitRepository {
 		| {
 				repo: GitRepository;
 				providerId: string;
+				providerName: string;
 				provider: ThirdPartyProvider & ThirdPartyProviderSupportsPullRequests;
 				remotes: GitRemote[];
 		  }
@@ -150,6 +151,7 @@ export class GitRepository {
 							return {
 								repo: this,
 								providerId: providerId,
+								providerName: provider.name,
 								provider: provider,
 								remotes: remotes.filter(_ => remotePaths.includes(_.path))
 							};
