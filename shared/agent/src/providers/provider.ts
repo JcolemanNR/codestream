@@ -1214,7 +1214,7 @@ export interface ProviderPullRequestInfo {
 
 export interface ProviderGetRepoInfoResponse {
 	id?: string;
-	isFork?: boolean;
+	isFork: boolean;
 	defaultBranch?: string;
 	nameWithOwner?: string;
 	pullRequests?: ProviderPullRequestInfo[];

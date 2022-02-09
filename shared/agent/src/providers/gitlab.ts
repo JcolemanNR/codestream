@@ -575,6 +575,7 @@ export class GitLabProvider extends ThirdPartyIssueProviderBase<CSGitLabProvider
 			return {
 				id: (projectResponse.body.iid || projectResponse.body.id)!.toString(),
 				defaultBranch: projectResponse.body.default_branch,
+				isFork: projectResponse.body.forked_from_project != null,
 				pullRequests: mergeRequestsResponse.body.map(_ => {
 					return {
 						id: JSON.stringify({ full: _.references.full, id: _.iid.toString() }),
