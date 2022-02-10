@@ -10,6 +10,7 @@ import { setupCommunication } from "../../index";
 import { CreatePullRequestPanel } from "../../Stream/CreatePullRequestPanel";
 
 import { HostApi } from "../../webview-api";
+import { CheckPullRequestPreconditionsResponse } from "@codestream/protocols/agent";
 // HostApi is now a mock constructor
 jest.mock("../../webview-api");
 
@@ -79,8 +80,19 @@ it("renders default state", async () => {
 			} else if (a.method === "codestream/review/pr/checkPreconditions") {
 				return {
 					success: true,
-					branches: []
-				};
+					repo: {
+						branch: "feature/foo",
+						branches: [],
+						remoteBranch: "origin/feature/foo",
+						commitsBehindOriginHeadBranch: "0"
+					},
+					provider: {
+						repo: {
+							defaultBranch: "main",
+							isFork: false
+						}
+					}
+				} as CheckPullRequestPreconditionsResponse;
 			} else if (a.method === "codestream/scm/repos") {
 				return {
 					repositories: []
@@ -112,7 +124,7 @@ it("renders default state", async () => {
 	});
 	await waitFor(() => {
 		expect((container as any).textContent).toBe(
-			"Open a Pull RequestChoose two branches to start a new pull request.Choose different branches above to open a pull request. "
+			"Open a Pull RequestChoose two branches to start a new pull request.CancelCreate Pull Request "
 		);
 	});
 });
@@ -127,92 +139,96 @@ it("renders default state 2", async () => {
 			} else if (a.method === "codestream/review/pr/checkPreconditions") {
 				return {
 					success: true,
-					repoId: "61fac86ad537c93d8bb9bf8a",
-					remoteUrl: "//github.com/TeamCodeStream/a",
-					providerId: "github*com",
-					pullRequestTemplateNames: [],
-					pullRequestTemplatePath: "/Users/TeamCodeStream/code/a/.gitlab/merge_request_templates",
-					remotes: [
-						{
-							repoPath: "/Users/TeamCodeStream/code/a",
-							name: "origin",
-							scheme: "https://",
-							domain: "github.com",
-							path: "TeamCodeStream/a",
-							types: [
-								{
-									url: "https://github.com/TeamCodeStream/a.git",
-									type: "fetch"
-								},
-								{
-									url: "https://github.com/TeamCodeStream/a.git",
-									type: "push"
+					repo: {
+						id: "61fac86ad537c93d8bb9bf8a",
+						remoteUrl: "//github.com/TeamCodeStream/a",
+						remotes: [
+							{
+								repoPath: "/Users/TeamCodeStream/code/a",
+								name: "origin",
+								scheme: "https://",
+								domain: "github.com",
+								path: "TeamCodeStream/a",
+								types: [
+									{
+										url: "https://github.com/TeamCodeStream/a.git",
+										type: "fetch"
+									},
+									{
+										url: "https://github.com/TeamCodeStream/a.git",
+										type: "push"
+									}
+								],
+								uri: {
+									$mid: 1,
+									external: "https://github.com/TeamCodeStream/a.git",
+									path: "/TeamCodeStream/a.git",
+									scheme: "https",
+									authority: "github.com"
 								}
-							],
-							uri: {
-								$mid: 1,
-								external: "https://github.com/TeamCodeStream/a.git",
-								path: "/TeamCodeStream/a.git",
-								scheme: "https",
-								authority: "github.com"
-							}
-						},
-						{
-							repoPath: "/Users/TeamCodeStream/code/a",
-							name: "private",
-							scheme: "https://",
-							domain: "github.com",
-							path: "TeamCodeStream/b",
-							types: [
-								{
-									url: "https://github.com/TeamCodeStream/b.git",
-									type: "fetch"
-								},
-								{
-									url: "https://github.com/TeamCodeStream/b.git",
-									type: "push"
+							},
+							{
+								repoPath: "/Users/TeamCodeStream/code/a",
+								name: "private",
+								scheme: "https://",
+								domain: "github.com",
+								path: "TeamCodeStream/b",
+								types: [
+									{
+										url: "https://github.com/TeamCodeStream/b.git",
+										type: "fetch"
+									},
+									{
+										url: "https://github.com/TeamCodeStream/b.git",
+										type: "push"
+									}
+								],
+								uri: {
+									$mid: 1,
+									external: "https://github.com/TeamCodeStream/b.git",
+									path: "/TeamCodeStream/b.git",
+									scheme: "https",
+									authority: "github.com"
 								}
-							],
-							uri: {
-								$mid: 1,
-								external: "https://github.com/TeamCodeStream/b.git",
-								path: "/TeamCodeStream/b.git",
-								scheme: "https",
-								authority: "github.com"
 							}
-						}
-					],
-					remoteBranch: "origin/foo",
-					pullRequestProvider: {
+						],
+						remoteBranch: "origin/foo",
+						branch: "foo",
+						branches: ["foo", "master", "private"],
+						remoteBranches: [
+							{
+								remote: "origin",
+								branch: "foo"
+							},
+							{
+								remote: "origin",
+								branch: "master"
+							},
+							{
+								remote: "private",
+								branch: "asdf"
+							},
+							{
+								remote: "private",
+								branch: "master"
+							}
+						]
+					},
+					provider: {
+						id: "github*com",
 						isConnected: true,
-						defaultBranch: "master"
+						pullRequestTemplateNames: [],
+						pullRequestTemplatePath: "/Users/TeamCodeStream/code/a/.gitlab/merge_request_templates",
+						repo: {
+							defaultBranch: "master"
+						}
 					},
 					review: {
 						title: "",
 						text: ""
 					},
-					branch: "foo",
-					branches: ["foo", "master", "private"],
-					remoteBranches: [
-						{
-							remote: "origin",
-							branch: "foo"
-						},
-						{
-							remote: "origin",
-							branch: "master"
-						},
-						{
-							remote: "private",
-							branch: "asdf"
-						},
-						{
-							remote: "private",
-							branch: "master"
-						}
-					],
 					commitsBehindOriginHeadBranch: "0"
-				};
+				} as CheckPullRequestPreconditionsResponse;
 			} else if (a.method === "codestream/scm/repos") {
 				return {
 					repositories: [

@@ -101,12 +101,6 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			path
 		};
 	}
-	/**
-	 *
-	 */
-	constructor(session: CodeStreamSession) {
-		super(session);
-	}
 
 	private currentBranches = new Map<string, string | undefined>();
 

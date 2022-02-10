@@ -46,6 +46,9 @@ const storeFactory = () => {
 			github_enterprise: {},
 			gitlab_enterprise: {},
 			bitbucket: {},
+			"bitbucket*org": {
+				name: "BitBucket"
+			},
 			bitbucket_server: {}
 		},
 		repos: {},
@@ -80,54 +83,54 @@ it("renders default state 2", async () => {
 					success: true,
 					repo: {
 						id: "61fac86ad537c93d8bb9bf8a",
-						remoteUrl: "//gitlab.com/TeamCodeStream/a",
+						remoteUrl: "//bitbucket.org/TeamCodeStream/a",
 						remotes: [
 							{
 								repoPath: "/Users/TeamCodeStream/code/a",
 								name: "origin",
 								scheme: "https://",
-								domain: "gitlab.com",
+								domain: "bitbucket.org",
 								path: "TeamCodeStream/a",
 								types: [
 									{
-										url: "https://gitlab.com/TeamCodeStream/a.git",
+										url: "https://bitbucket.org/TeamCodeStream/a.git",
 										type: "fetch"
 									},
 									{
-										url: "https://gitlab.com/TeamCodeStream/a.git",
+										url: "https://bitbucket.org/TeamCodeStream/a.git",
 										type: "push"
 									}
 								],
 								uri: {
 									$mid: 1,
-									external: "https://gitlab.com/TeamCodeStream/a.git",
+									external: "https://bitbucket.org/TeamCodeStream/a.git",
 									path: "/TeamCodeStream/a.git",
 									scheme: "https",
-									authority: "gitlab.com"
+									authority: "bitbucket.org"
 								}
 							},
 							{
 								repoPath: "/Users/TeamCodeStream/code/a",
 								name: "private",
 								scheme: "https://",
-								domain: "gitlab.com",
+								domain: "bitbucket.org",
 								path: "TeamCodeStream/b",
 								types: [
 									{
-										url: "https://gitlab.com/TeamCodeStream/b.git",
+										url: "https://bitbucket.org/TeamCodeStream/b.git",
 										type: "fetch"
 									},
 									{
-										url: "https://gitlab.com/TeamCodeStream/b.git",
+										url: "https://bitbucket.org/TeamCodeStream/b.git",
 										type: "push"
 									}
 								],
 								uri: {
 									$mid: 1,
-									external: "https://gitlab.com/TeamCodeStream/b.git",
+									external: "https://bitbucket.org/TeamCodeStream/b.git",
 									path: "/TeamCodeStream/b.git",
 									scheme: "https",
-									authority: "gitlab.com"
+									authority: "bitbucket.org"
 								}
 							}
 						],
@@ -154,10 +157,10 @@ it("renders default state 2", async () => {
 						]
 					},
 					provider: {
-						id: "gitlab*com",
+						id: "bitbucket*org",
 						isConnected: true,
 						pullRequestTemplateNames: [],
-						pullRequestTemplatePath: "/Users/TeamCodeStream/code/a/.gitlab/merge_request_templates",
+						pullRequestTemplatePath: "",
 
 						repo: {
 							defaultBranch: "master"
@@ -181,7 +184,7 @@ it("renders default state 2", async () => {
 								name: "a"
 							},
 							root: true,
-							providerId: "github*com"
+							providerId: "bitbucket*org"
 						}
 					]
 				};
@@ -210,7 +213,7 @@ it("renders default state 2", async () => {
 	});
 	await waitFor(() => {
 		expect((container as any).textContent).toBe(
-			"Open a Merge RequestChoose two branches to start a new merge request.target: mastersource: fooCancelCreate Merge Request "
+			"Open a Pull RequestChoose two branches to start a new pull request.destination: mastersource: fooCancelCreate Pull Request "
 		);
 	});
 });

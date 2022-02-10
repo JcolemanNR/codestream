@@ -497,9 +497,6 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		setPreconditionError({ message: "", type: "", url: "", id: "" });
 		setPreconditionWarning({ message: "", type: "", url: "", id: "" });
 
-		const providerRepositoryId = acrossForks
-			? baseForkedRepo.id
-			: model?.provider?.repo?.providerRepoId;
 		try {
 			const result = await HostApi.instance.send(CreatePullRequestRequestType, {
 				...pending!,
@@ -510,7 +507,9 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				headRefRepoOwner: headForkedRepo?.owner,
 				headRefRepoNameWithOwner: headForkedRepo?.nameWithOwner,
 				headRefName: pending?.headRefName!,
-				providerRepositoryId: providerRepositoryId,
+				providerRepositoryId: acrossForks
+					? baseForkedRepo.id
+					: model?.provider?.repo?.providerRepoId,
 				remote: model?.repo?.remoteUrl!,
 				requiresRemoteBranch: prUpstreamOn && prUpstream != null,
 				remoteName: prUpstreamOn && prUpstream ? prUpstream : undefined,

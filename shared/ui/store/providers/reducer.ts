@@ -93,23 +93,41 @@ const PRLabel: LabelHash = {
 	repoBranchHeadLabel: "compare"
 };
 
+const BBPRLabel: LabelHash = {
+	PullRequest: "Pull Request",
+	PullRequests: "Pull Requests",
+	Pullrequest: "Pull request",
+	pullrequest: "pull request",
+	pullrequests: "pull requests",
+	PR: "PR",
+	PRs: "PRs",
+	pr: "pr",
+	AddSingleComment: "Add single comment",
+	repoBaseLabel: "base",
+	repoBranchBaseLabel: "destination",
+	repoHeadLabel: "head",
+	repoBranchHeadLabel: "source"
+};
+
 export const getPRLabel = createSelector(
 	(state: CodeStreamState) => state,
 	(state: CodeStreamState): LabelHash => {
 		return isConnected(state, { id: "gitlab*com" }) ||
 			isConnected(state, { id: "gitlab/enterprise" })
 			? MRLabel
+			: isConnected(state, { id: "bitbucket*org" }) ||
+			  isConnected(state, { id: "bitbucket/server" })
+			? BBPRLabel
 			: PRLabel;
 	}
 );
 
-export const getPRLabelForProvider = (provider: string): LabelHash => {
-	// let icon;
-	// if (provider) {
-	// 	const { name } = PROVIDER_MAPPINGS[provider];
-	// }
-	return provider.toLocaleLowerCase().startsWith("gitlab")
+export const getPRLabelForProvider = (providerId: string): LabelHash => {
+	const providerIdNormalized = providerId.toLocaleLowerCase();
+	return providerIdNormalized.startsWith("gitlab")
 		? { ...MRLabel, icon: "" }
+		: providerIdNormalized.startsWith("bitbucket*org")
+		? BBPRLabel
 		: { ...PRLabel, icon: "" };
 };
 
