@@ -657,14 +657,8 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			let providerName: string | undefined = undefined;
 			let providerRepoId: string | undefined = undefined;
 			let owner: string | undefined = undefined;
-			const user = await users.getMe();
-			if (!user) {
-				Logger.warn("Could not find CSMe user");
-				return {
-					success: false
-				};
-			}
 
+			const user = await users.getMe();
 			const connectedProviders = await providerRegistry.getConnectedPullRequestProviders(user);
 			const providerRepo = await repo.getPullRequestProvider(user, connectedProviders);
 			let providerRepoDefaultBranch: string | undefined = "";
@@ -719,14 +713,14 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			}
 
 			if (!success) {
-				if (user && connectedProviders && connectedProviders.length) {
+				if (connectedProviders && connectedProviders.length) {
 					return {
 						success: false,
 						error: {
 							type: "REQUIRES_PROVIDER_REPO",
-							message: `To create a pull request you'll need to open a ${connectedProviders
-								.map(_ => _.displayName)
-								.join(" or ")} repository`
+							message: `You are connected to ${Strings.phraseList(
+								connectedProviders.map(_ => _.displayName)
+							)}. To open a pull request with another provider please select your service`
 						}
 					};
 				}

@@ -20,6 +20,7 @@ import {
 	GetBranchesRequestType,
 	GetLatestCommitScmRequestType,
 	GetReposScmRequestType,
+	ProviderGetForkedReposResponse,
 	ReadTextFileRequestType,
 	ReposScm
 } from "@codestream/protocols/agent";
@@ -154,6 +155,22 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				? currentUser.status[teamId]
 				: EMPTY_STATUS;
 
+		const connectedCodeHostProviders = {};
+
+		const isConnectedToGitHub = isConnected(state, { id: "github*com" });
+		const isConnectedToGitLab = isConnected(state, { id: "gitlab*com" });
+		const isConnectedToBitbucket = isConnected(state, { id: "bitbucket*org" });
+		const isConnectedToGitHubEnterprise = isConnected(state, { id: "github/enterprise" });
+		const isConnectedToGitLabEnterprise = isConnected(state, { id: "gitlab/enterprise" });
+		const isConnectedToBitbucketServer = isConnected(state, { id: "bitbucket/server" });
+
+		connectedCodeHostProviders["gitlab*com"] = isConnectedToGitHub;
+		connectedCodeHostProviders["gitlab*com"] = isConnectedToGitLab;
+		connectedCodeHostProviders["bitbucket*org"] = isConnectedToBitbucket;
+		connectedCodeHostProviders["github/enterprise"] = isConnectedToGitHubEnterprise;
+		connectedCodeHostProviders["gitlab/enterprise"] = isConnectedToGitLabEnterprise;
+		connectedCodeHostProviders["bitbucket/server"] = isConnectedToBitbucketServer;
+
 		return {
 			repos: state.repos,
 			currentUser,
@@ -162,12 +179,13 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			providers: providers,
 			codeHostProviders: codeHostProviders,
 			reviewId: context.createPullRequestReviewId,
-			isConnectedToGitHub: isConnected(state, { id: "github*com" }),
-			isConnectedToGitLab: isConnected(state, { id: "gitlab*com" }),
-			isConnectedToBitbucket: isConnected(state, { id: "bitbucket*org" }),
-			isConnectedToGitHubEnterprise: isConnected(state, { id: "github/enterprise" }),
-			isConnectedToGitLabEnterprise: isConnected(state, { id: "gitlab/enterprise" }),
-			isConnectedToBitbucketServer: isConnected(state, { id: "bitbucket/server" }),
+			connectedCodeHostProviders,
+			isConnectedToGitHub,
+			isConnectedToGitLab,
+			isConnectedToBitbucket,
+			isConnectedToGitHubEnterprise,
+			isConnectedToGitLabEnterprise,
+			isConnectedToBitbucketServer,
 			currentRepo: context.currentRepo,
 			ideName: state.ide.name,
 			newPullRequestOptions: state.context.newPullRequestOptions,
@@ -175,82 +193,63 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		};
 	});
 
+	const pauseDataNotifications = useRef(false);
+
+	// loaders
 	const [loading, setLoading] = useState(true);
 	const [loadingForkInfo, setLoadingForkInfo] = useState(false);
 	const [loadingBranchInfo, setLoadingBranchInfo] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
-	const [pullSubmitting, setPullSubmitting] = useState(false);
-
+	const [isWaiting, setIsWaiting] = useState(false);
+	// warnings + errors
 	const [preconditionError, setPreconditionError] = useState(EMPTY_ERROR);
 	const [preconditionWarning, setPreconditionWarning] = useState(EMPTY_WARNING);
 	const [unexpectedError, setUnexpectedError] = useState(false);
-
 	const [formState, setFormState] = useState({ message: "", type: "", url: "", id: "" });
+	// validation
 	const [titleValidity, setTitleValidity] = useState(true);
-	const pauseDataNotifications = useRef(false);
+	// agent
+	// this is the initial data request payload
+	const [model, setModel] = useState<CheckPullRequestPreconditionsResponse | undefined>();
+	// this is the request we're building up to create a pull request
+	const [pending, setPending] = useState<CreatePullRequestRequest | undefined>({} as any);
+	const [openRepos, setOpenRepos] = useState<ReposScm[]>([]);
 
 	const [latestCommit, setLatestCommit] = useState("");
-
-	// states used to create the eventual pr
-	// const [prBranch, setPrBranch] = useState("");
-	// const [reviewBranch, setReviewBranch] = useState("");
-	// const [branches, setBranches] = useState([] as string[]);
-	// const [remoteBranches, setRemoteBranches] = useState([] as { remote?: string; branch: string }[]);
-
-	// const [numLines, setNumLines] = useState(8);
-	// const [pullRequestTemplateNames, setPullRequestTemplateNames] = useState<string[] | undefined>();
-	// const [templatePath, setTemplatePath] = useState<string | undefined>("");
-	// const [prText, setPrText] = useState("");
-
-	// maybe fix
 	const [origins, setOrigins] = useState([] as string[]);
 	const [commitsBehindOrigin, setCommitsBehindOrigin] = useState(0);
 	const [prProviderId, setPrProviderId] = useState("");
 	const [requiresUpstream, setRequiresUpstream] = useState(false);
 
-	const [foo, setFoo] = useState<CheckPullRequestPreconditionsResponse | undefined>();
-	const [bar, setBar] = useState<CreatePullRequestRequest | undefined>({} as any);
-
 	const [prTitle, setPrTitle] = useState("");
-
 	const [prTextTouched, setPrTextTouched] = useState(false);
 
-	// const [prRemoteUrl, setPrRemoteUrl] = useState("");
 	const [prProviderIconName, setPrProviderIconName] = useState("");
 	const [prUpstreamOn, setPrUpstreamOn] = useState(true);
 	const [prUpstream, setPrUpstream] = useState("");
-	// const [prRepoId, setPrRepoId] = useState("");
-
 	const [addressesStatus, setAddressesStatus] = useState(true);
-	const [openRepos, setOpenRepos] = useState<ReposScm[]>([]);
+
 	const [selectedRepo, setSelectedRepo] = useState<ReposScm | undefined>(undefined);
-
 	const [currentStep, setCurrentStep] = useState(0);
-
 	const [isLoadingDiffs, setIsLoadingDiffs] = useState(false);
 	const [filesChanged, setFilesChanged] = useState<any[]>([]);
 
-	const [isWaiting, setIsWaiting] = useState(false);
 	const [propsForPrePRProviderInfoModal, setPropsForPrePRProviderInfoModal] = useState<any>();
-
 	const [prUrl, setPrUrl] = useState("");
 	const [hasMounted, setHasMounted] = useState(false);
-
 	const [acrossForks, setAcrossForks] = useState(false);
 	const [forkedRepos, setForkedRepos] = useState<any[]>([]);
 	const [parentRepo, setParentRepo] = useState<any>(undefined);
 	const [baseForkedRepo, setBaseForkedRepo] = useState<any>(undefined);
 	const [headForkedRepo, setHeadForkedRepo] = useState<any>(undefined);
 
-	const [unexpectedPullError, setUnexpectedPullError] = useState(false);
-
 	const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
 	const fetchPreconditionDataRef = useRef((isRepoUpdate?: boolean) => {});
 
 	const prLabel = useMemo(() => {
-		return getPRLabelForProvider(foo?.provider?.id || "");
-	}, [foo?.provider?.id]);
+		return getPRLabelForProvider(model?.provider?.id || "");
+	}, [model?.provider?.id]);
 
 	const stopWaiting = useCallback(() => {
 		setIsWaiting(false);
@@ -282,16 +281,16 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			};
 			if (
 				isRepoUpdate &&
-				bar?.baseRefName &&
-				bar?.headRefName &&
+				pending?.baseRefName &&
+				pending?.headRefName &&
 				selectedRepo &&
-				foo?.provider?.id
+				model?.provider?.id
 			) {
 				// if we're updating data, we must get branches and repo from state
-				args.providerId = foo!.provider!.id;
+				args.providerId = model!.provider!.id;
 				args.repoId = selectedRepo!.id;
-				args.baseRefName = bar?.baseRefName;
-				args.headRefName = bar?.headRefName;
+				args.baseRefName = pending?.baseRefName;
+				args.headRefName = pending?.headRefName;
 				args.skipLocalModificationsCheck = true;
 			} else if (!derivedState.reviewId) {
 				// if we're not creating a PR from a review, then get the current
@@ -321,11 +320,6 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 						setSelectedRepo(panelRepo);
 					}
 					args.repoId = panelRepo.id || "";
-					// setBar({
-					// 	...bar!,
-					// 	repoId: args.repoId
-					// });
-					// setPrRepoId(args.repoId);
 
 					let branchInfo;
 					if (newPullRequestBranch && newPullRequestBranch.name) {
@@ -345,40 +339,27 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			}
 			const result = await HostApi.instance.send(CheckPullRequestPreconditionsRequestType, args);
 			if (result) {
-				setFoo(result);
+				setModel(result);
 			}
 			if (result && result.success) {
 				args.repoId = result.repo!.id!;
 
-				// setBranches(result.branches!);
-				// setRemoteBranches(result.remoteBranches!);
 				if (result.repo) {
 					setCommitsBehindOrigin(+result.repo.commitsBehindOriginHeadBranch!);
 				}
-				let newBaseRefName = bar?.headRefName;
-				let newHeadRefName = args.headRefName || bar?.headRefName || result.repo?.branch || "";
+				let newBaseRefName = pending?.headRefName;
+				let newHeadRefName = args.headRefName || pending?.headRefName || result.repo?.branch || "";
 				if (result.provider?.repo?.defaultBranch) {
 					newBaseRefName = result.provider!.repo!.defaultBranch;
 				}
-				// setReviewBranch(newReviewBranch);
-				//setPrBranch(newPrBranch);
 
-				//setPrRemoteUrl(result.remoteUrl!);
 				if (result.review && result.review.title) changePRTitle(result.review.title);
 
-				//const template = result.pullRequestTemplate || "";
-				//setNumLines(Math.max(template.split("\n").length, 8));
-				//setPullRequestTemplateNames(result.pullRequestTemplateNames);
-				//setTemplatePath(result.pullRequestTemplatePath);
 				let newText = result.provider?.pullRequestTemplate || "";
 				if (result.review && result.review.text) newText += result.review.text;
-				// if (!prTextTouched) {
-				// 	setBar({ ...bar!, description: newText });
-				// 	// setPrText(newText);
-				// }
 
-				setBar({
-					...bar!,
+				setPending({
+					...pending!,
 					repoId: result.repo!.id,
 					baseRefName: newBaseRefName!,
 					headRefName: newHeadRefName,
@@ -386,10 +367,6 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				});
 
 				setPrProviderId(result.provider?.id!);
-
-				// if (result.nameWithOwner) {
-				// 	setPrNameWithOwner(result.nameWithOwner);
-				// }
 
 				const isFork = result?.provider?.repo?.isFork;
 				if (isFork) {
@@ -399,15 +376,13 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 				setCurrentStep(3);
 				fetchFilesChanged(args.repoId, newBaseRefName!, newHeadRefName);
+				setRequiresUpstream(false);
 
 				if (newHeadRefName === newBaseRefName) {
 					if (!isFork) {
 						setPreconditionError({ type: "BRANCHES_MUST_NOT_MATCH", message: "", url: "", id: "" });
 					}
 					setFormState({ type: "", message: "", url: "", id: "" });
-					if (result.repo) {
-						setCommitsBehindOrigin(+result.repo.commitsBehindOriginHeadBranch!);
-					}
 				} else if (result.warning && result.warning.type) {
 					if (result.warning.type === "REQUIRES_UPSTREAM") {
 						setRequiresUpstream(true);
@@ -421,12 +396,6 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 							id: result.warning.id || ""
 						});
 					}
-					// } else if (
-					// 	result.pullRequestProvider &&
-					// 	result.pullRequestProvider.defaultBranch === result.branch
-					// ) {
-					// 	setPreconditionError({ type: "BRANCHES_MUST_NOT_MATCH", message: "", url: "", id: "" });
-					// 	setFormState({ type: "", message: "", url: "", id: "" });
 				} else {
 					setPreconditionError({ type: "", message: "", url: "", id: "" });
 				}
@@ -530,19 +499,19 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 		const providerRepositoryId = acrossForks
 			? baseForkedRepo.id
-			: foo?.provider?.repo?.providerRepoId;
+			: model?.provider?.repo?.providerRepoId;
 		try {
 			const result = await HostApi.instance.send(CreatePullRequestRequestType, {
-				...bar!,
+				...pending!,
 				reviewId: derivedState.reviewId,
 				providerId: prProviderId,
 				title: prTitle,
 				isFork: acrossForks,
 				headRefRepoOwner: headForkedRepo?.owner,
 				headRefRepoNameWithOwner: headForkedRepo?.nameWithOwner,
-				headRefName: bar?.headRefName!,
+				headRefName: pending?.headRefName!,
 				providerRepositoryId: providerRepositoryId,
-				remote: foo?.repo?.remoteUrl!,
+				remote: model?.repo?.remoteUrl!,
 				requiresRemoteBranch: prUpstreamOn && prUpstream != null,
 				remoteName: prUpstreamOn && prUpstream ? prUpstream : undefined,
 				addresses: addressesStatus
@@ -606,24 +575,6 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		}
 	};
 
-	const onPullSubmit = async (event: React.SyntheticEvent) => {
-		setUnexpectedPullError(false);
-		setPullSubmitting(true);
-
-		try {
-			await HostApi.instance.send(FetchRemoteBranchRequestType, {
-				repoId: bar?.repoId!,
-				branchName: bar?.headRefName!
-			});
-		} catch (error) {
-			logError(error, {});
-			logError(`Unexpected error during branch pulling : ${error}`, {});
-			setUnexpectedPullError(true);
-		} finally {
-			setPullSubmitting(false);
-		}
-	};
-
 	const checkPullRequestBranchPreconditions = async (localPrBranch, localReviewBranch) => {
 		if (acrossForks) {
 			if (baseForkedRepo.id === headForkedRepo.id && localPrBranch === localReviewBranch) {
@@ -664,7 +615,6 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			}
 		}
 
-		console.warn("CALLING CHECK WITH: ", localReviewBranch);
 		HostApi.instance
 			.send(CheckPullRequestPreconditionsRequestType, {
 				providerId: prProviderId,
@@ -678,16 +628,13 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				setPreconditionError({ type: "", message: "", url: "", id: "" });
 				setPreconditionWarning({ type: "", message: "", url: "", id: "" });
 				setFormState({ type: "", message: "", url: "", id: "" });
+				setRequiresUpstream(false);
+
 				if (result && result.warning && result.warning.type === "REQUIRES_UPSTREAM") {
 					setRequiresUpstream(true);
 					setOrigins(result.repo!.origins!);
 					setPrUpstream(result.repo!.origins![0]);
 				} else if (result && result.error) {
-					// setFormState({
-					// 	type: result.error.type || "UNKNOWN",
-					// 	message: result.error.message || "",
-					// 	url: result.error.url || ""
-					// });
 					setPreconditionError({
 						type: result.error.type || "UNKNOWN",
 						message: result.error.message || "",
@@ -709,6 +656,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				setLoadingBranchInfo(false);
 			})
 			.catch(error => {
+				setLoadingBranchInfo(false);
+
 				setPreconditionError({
 					type: "UNKNOWN",
 					message: typeof error === "string" ? error : error.message,
@@ -727,19 +676,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				method: "getForkedRepos",
 				providerId: providerId,
 				params: { remote: remoteUrl }
-			})) as {
-				self: {
-					id: string;
-					nameWithOwner: string;
-					url: string;
-				};
-				parent: {
-					id: string;
-					nameWithOwner: string;
-					url: string;
-				};
-				forks?: any[];
-			};
+			})) as ProviderGetForkedReposResponse;
 			if (response) {
 				const forks = response.forks || [];
 				setForkedRepos(forks);
@@ -747,28 +684,18 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				setBaseForkedRepo(response.parent);
 				setHeadForkedRepo(response.self || response.parent);
 			}
-			setLoadingForkInfo(false);
 		} catch (ex) {
-			setLoadingForkInfo(false);
 			console.warn("getForkedRepos", ex);
+		} finally {
+			setLoadingForkInfo(false);
 		}
 	};
 
-	// useEffect(() => {
-	// 	fetchRepositoryForks(foo?.provider?.id!, foo?.repo?.remoteUrl!);
-	// }, [acrossForks]);
-
-	// useEffect(() => {
-	// 	if (!foo?.provider?.id) return;
-
-	// 	fetchRepositoryForks(foo?.provider?.id, foo?.repo?.remoteUrl);
-	// }, [foo?.provider?.id, foo?.repo?.remoteUrl]);
-
 	const renderBaseBranchesDropdown = () => {
-		if (!foo?.repo?.remoteBranches || !foo?.repo?.remoteBranches.length) return undefined;
+		if (!model?.repo?.remoteBranches || !model?.repo?.remoteBranches.length) return undefined;
 
 		var uniqueRemoteNamesCount = Object.keys(
-			foo?.repo?.remoteBranches.reduce((map, obj: { remote?: string }) => {
+			model?.repo?.remoteBranches.reduce((map, obj: { remote?: string }) => {
 				if (obj.remote) {
 					map[obj.remote] = true;
 				}
@@ -776,7 +703,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			}, {})
 		).length;
 
-		const items = foo?.repo?.remoteBranches!.map(_ => {
+		const items = model?.repo?.remoteBranches!.map(_ => {
 			const label =
 				uniqueRemoteNamesCount === 1 || !_.remote ? _.branch : `${_.remote}/${_.branch}`;
 			return {
@@ -784,12 +711,11 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				searchLabel: label,
 				key: label,
 				action: async () => {
-					// setPrBranch(_.branch);
-					setBar({
-						...bar!,
+					setPending({
+						...pending!,
 						baseRefName: _.branch
 					});
-					checkPullRequestBranchPreconditions(_.branch, bar?.headRefName);
+					checkPullRequestBranchPreconditions(_.branch, pending?.headRefName);
 				}
 			};
 		}) as any;
@@ -802,8 +728,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			<span>
 				<DropdownButton variant="secondary" items={items}>
 					<span className="subtle">{prLabel.repoBranchBaseLabel}:</span>{" "}
-					{/* <strong>{prBranch || reviewBranch}</strong> */}
-					<strong>{bar?.baseRefName}</strong>
+					<strong>{pending?.baseRefName}</strong>
 				</DropdownButton>
 			</span>
 		);
@@ -818,11 +743,11 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				searchLabel: _.name,
 				key: _.name,
 				action: () => {
-					setBar({
-						...bar!,
+					setPending({
+						...pending!,
 						baseRefName: _.name
 					});
-					checkPullRequestBranchPreconditions(_.name, bar?.headRefName);
+					checkPullRequestBranchPreconditions(_.name, pending?.headRefName);
 				}
 			};
 		});
@@ -834,31 +759,29 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		return (
 			<span>
 				<DropdownButton variant="secondary" items={items}>
-					<span className="subtle">base:</span> <strong>{bar?.baseRefName}</strong>
+					<span className="subtle">base:</span> <strong>{pending?.baseRefName}</strong>
 				</DropdownButton>
 			</span>
 		);
 	};
 
 	const renderCompareBranchesDropdown = () => {
-		if (!foo || !foo.repo) return null;
+		if (!model || !model.repo) return null;
 
 		if (acrossForks) return renderCompareBranchesAcrossForksDropdown();
 
-		const items = foo?.repo?.branches!.map(_ => {
+		const items = model?.repo?.branches!.map(_ => {
 			return {
 				label: _,
 				searchLabel: _,
 				key: _,
 				action: async () => {
-					// setReviewBranch(_);
-
-					setBar({
-						...bar!,
+					setPending({
+						...pending!,
 						headRefName: _
 					});
 
-					checkPullRequestBranchPreconditions(bar?.baseRefName, _);
+					checkPullRequestBranchPreconditions(pending?.baseRefName, _);
 				}
 			};
 		}) as any[];
@@ -870,7 +793,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		return (
 			<DropdownButton variant="secondary" items={items}>
 				<span className="subtle">{prLabel.repoBranchHeadLabel}:</span>{" "}
-				<strong>{bar?.headRefName}</strong>
+				<strong>{pending?.headRefName}</strong>
 			</DropdownButton>
 		);
 	};
@@ -883,12 +806,11 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				searchLabel: _.name,
 				key: _.name,
 				action: () => {
-					// setReviewBranch(_.name);
-					setBar({
-						...bar!,
+					setPending({
+						...pending!,
 						headRefName: _.name
 					});
-					checkPullRequestBranchPreconditions(bar?.baseRefName, _.name);
+					checkPullRequestBranchPreconditions(pending?.baseRefName, _.name);
 				}
 			};
 		});
@@ -899,7 +821,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		}
 		return (
 			<DropdownButton variant="secondary" items={items}>
-				<span className="subtle">compare:</span> <strong>{bar?.headRefName}</strong>
+				<span className="subtle">compare:</span> <strong>{pending?.headRefName}</strong>
 			</DropdownButton>
 		);
 	};
@@ -1015,8 +937,11 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 	};
 
 	const renderProviders = () => {
-		const { codeHostProviders, providers } = derivedState;
+		const { codeHostProviders, connectedCodeHostProviders, providers } = derivedState;
 		let items = codeHostProviders.map(providerId => {
+			// if we're already connected, don't show
+			if (connectedCodeHostProviders[providerId]) return null;
+
 			const provider = providers[providerId];
 			const {
 				name,
@@ -1202,7 +1127,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 							"This feedback request"
 						) : (
 							<span>
-								The compare branch <PRBranch>{bar?.headRefName}</PRBranch>
+								The compare branch <PRBranch>{pending?.headRefName}</PRBranch>
 							</span>
 						)}{" "}
 						includes local commits. Push your changes to include them in your {prLabel.pullrequest}.
@@ -1218,7 +1143,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 								"The feedback request"
 							) : (
 								<span>
-									The compare branch <PRBranch>{bar?.headRefName}</PRBranch>
+									The compare branch <PRBranch>{pending?.headRefName}</PRBranch>
 								</span>
 							)}{" "}
 							includes uncommitted changes. Commit and push your changes to include them.
@@ -1251,13 +1176,15 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 									e.preventDefault();
 									if (
 										id &&
-										foo &&
-										foo.provider &&
-										foo.provider.id &&
-										derivedState.supportedPullRequestViewProviders.find(_ => _ === foo.provider!.id)
+										model &&
+										model.provider &&
+										model.provider.id &&
+										derivedState.supportedPullRequestViewProviders.find(
+											_ => _ === model.provider!.id
+										)
 									) {
 										dispatch(closeAllPanels());
-										dispatch(setCurrentPullRequest(foo.provider.id, id));
+										dispatch(setCurrentPullRequest(model.provider.id, id));
 									} else {
 										HostApi.instance.send(OpenUrlRequestType, { url: url! });
 									}
@@ -1298,7 +1225,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 	const onClickTryReauthAgain = (event: React.SyntheticEvent) => {
 		event.preventDefault();
-		if (foo?.provider?.id) {
+		if (model?.provider?.id) {
 			setCurrentStep(1);
 		} else {
 			fetchPreconditionData();
@@ -1323,8 +1250,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 	const getLatestCommit = async () => {
 		const result = await HostApi.instance.send(GetLatestCommitScmRequestType, {
-			repoId: bar?.repoId!,
-			branch: bar?.headRefName!
+			repoId: pending?.repoId!,
+			branch: pending?.headRefName!
 		});
 		if (result) {
 			setLatestCommit(result.shortMessage);
@@ -1333,29 +1260,29 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 	useEffect(() => {
 		getLatestCommit();
-	}, [selectedRepo, bar?.headRefName]);
+	}, [selectedRepo, pending?.headRefName]);
 
 	useEffect(() => {
 		fetchBranchCommitsStatus();
-	}, [bar?.repoId, bar?.baseRefName, bar?.headRefName]);
+	}, [pending?.repoId, pending?.baseRefName, pending?.headRefName]);
 
 	const fetchBranchCommitsStatus = async () => {
-		if (!bar?.repoId) return;
+		if (!pending?.repoId) return;
 
 		const commitsStatus = await HostApi.instance.send(FetchBranchCommitsStatusRequestType, {
-			repoId: bar?.repoId!,
-			branchName: (bar?.baseRefName || bar?.headRefName)!
+			repoId: pending?.repoId!,
+			branchName: (pending?.baseRefName || pending?.headRefName)!
 		});
 
 		setCommitsBehindOrigin(+commitsStatus.commitsBehindOrigin);
 	};
 
 	const setTitleBasedOnBranch = () => {
-		if (!bar || !bar.headRefName) return;
+		if (!pending || !pending.headRefName) return;
 
 		setPrTitle(
-			bar.headRefName.charAt(0).toUpperCase() +
-				bar.headRefName
+			pending.headRefName.charAt(0).toUpperCase() +
+				pending.headRefName
 					.slice(1)
 					.replace("-", " ")
 					.replace(/^(\w+)\//, "$1: ")
@@ -1384,40 +1311,40 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 	const fetchFilesChanged = async (repoId: string, baseRefName: string, headRefName: string) => {
 		setIsLoadingDiffs(true);
-		const response = await HostApi.instance.send(DiffBranchesRequestType, {
-			repoId: repoId,
-			baseRef: baseRefName,
-			headRef: headRefName
-		});
+		try {
+			const response = await HostApi.instance.send(DiffBranchesRequestType, {
+				repoId: repoId,
+				baseRef: baseRefName,
+				headRef: headRefName
+			});
 
-		if (response.error) {
+			if (response.error) {
+				setFilesChanged([]);
+			} else if (response && response.filesChanged) {
+				const { patches } = response.filesChanged;
+				const filesChanged = patches
+					.map(_ => {
+						const fileName = _.newFileName === "/dev/null" ? _.oldFileName : _.newFileName;
+						return {
+							..._,
+							linesAdded: _.additions,
+							linesRemoved: _.deletions,
+							file: fileName,
+							filename: fileName,
+							hunks: _.hunks,
+							sha: _.sha
+						};
+					})
+					.filter(_ => _.filename);
+				setFilesChanged(filesChanged);
+			}
+		} catch (error) {
+			console.warn(error);
 			setFilesChanged([]);
-		} else if (response && response.filesChanged) {
-			const { patches } = response.filesChanged;
-			const filesChanged = patches
-				.map(_ => {
-					const fileName = _.newFileName === "/dev/null" ? _.oldFileName : _.newFileName;
-					return {
-						..._,
-						linesAdded: _.additions,
-						linesRemoved: _.deletions,
-						file: fileName,
-						filename: fileName,
-						hunks: _.hunks,
-						sha: _.sha
-					};
-				})
-				.filter(_ => _.filename);
-			setFilesChanged(filesChanged);
+		} finally {
+			setIsLoadingDiffs(false);
 		}
-		setIsLoadingDiffs(false);
 	};
-
-	// useEffect(() => {
-	// 	if (bar?.headRefName && bar?.baseRefName) {
-	// 		checkPullRequestBranchPreconditions(bar?.baseRefName, bar?.headRefName);
-	// 	}
-	// }, [acrossForks, baseForkedRepo, headForkedRepo]);
 
 	const [showDiffsAnyway, setShowDiffsAnyway] = useState(false);
 
@@ -1557,7 +1484,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 															onMouseDown={() => changePRTitle(latestCommit)}
 														/>
 													)}
-													{bar?.headRefName && (
+													{pending?.headRefName && (
 														<Icon
 															placement="topRight"
 															align={{ offset: [5, 0] }}
@@ -1570,13 +1497,13 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 												</div>
 											</div>
 											<div className="control-group">
-												{foo?.provider?.pullRequestTemplateNames &&
-													foo?.provider?.pullRequestTemplateNames.length > 0 && (
+												{model?.provider?.pullRequestTemplateNames &&
+													model?.provider?.pullRequestTemplateNames.length > 0 && (
 														<div style={{ marginBottom: "10px" }}>
 															<DropdownButton
 																variant="secondary"
 																selectedKey={selectedTemplate}
-																items={foo?.provider?.pullRequestTemplateNames
+																items={model?.provider?.pullRequestTemplateNames
 																	.map(name => {
 																		const path = `${name}.md`;
 																		return {
@@ -1585,11 +1512,13 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 																			action: async () => {
 																				const response = (await HostApi.instance.send(
 																					ReadTextFileRequestType,
-																					{ path, baseDir: foo?.provider?.pullRequestTemplatePath }
+																					{
+																						path,
+																						baseDir: model?.provider?.pullRequestTemplatePath
+																					}
 																				)) as any;
 																				setSelectedTemplate(name);
-																				// setPrText(response.contents);
-																				setBar({ ...bar!, description: response.contents });
+																				setPending({ ...pending!, description: response.contents });
 																			}
 																		} as any;
 																	})
@@ -1602,8 +1531,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 																			key: "__none__",
 																			action: async () => {
 																				setSelectedTemplate("__none__");
-																				// setPrText("");
-																				setBar({ ...bar!, description: "" });
+																				setPending({ ...pending!, description: "" });
 																			}
 																		}
 																	)}
@@ -1616,18 +1544,17 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 													className="input-text"
 													name="description"
 													rows={
-														foo &&
-														foo.provider &&
-														foo?.provider?.pullRequestTemplateLinesCount &&
-														foo.provider.pullRequestTemplateLinesCount! > 20
+														model &&
+														model.provider &&
+														model?.provider?.pullRequestTemplateLinesCount &&
+														model.provider.pullRequestTemplateLinesCount! > 20
 															? 20
-															: foo?.provider?.pullRequestTemplateLinesCount || 8
+															: model?.provider?.pullRequestTemplateLinesCount || 8
 													}
-													value={bar?.description}
+													value={pending?.description}
 													onChange={e => {
 														setPrTextTouched(true);
-														// setPrText(e.target.value);
-														setBar({ ...bar!, description: e.target.value });
+														setPending({ ...pending!, description: e.target.value });
 													}}
 													placeholder={`${prLabel.Pullrequest} description (optional)`}
 													style={{ resize: "vertical" }}
@@ -1649,7 +1576,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 														}}
 													>
 														<Tooltip
-															title={`This will run 'git push -u ${prUpstream} ${bar?.headRefName}'`}
+															title={`This will run 'git push -u ${prUpstream} ${pending?.headRefName}'`}
 														>
 															<span className="subtle">
 																Set upstream to{" "}
@@ -1658,7 +1585,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 																		variant="text"
 																		items={origins.map((_: any) => {
 																			return {
-																				label: `${_}/${bar?.headRefName}`,
+																				label: `${_}/${pending?.headRefName}`,
 																				key: _,
 																				action: () => {
 																					setPrUpstream(_);
@@ -1666,12 +1593,12 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 																			};
 																		})}
 																	>
-																		{`${prUpstream || origins[0]}/${bar?.headRefName}`}
+																		{`${prUpstream || origins[0]}/${pending?.headRefName}`}
 																	</DropdownButton>
 																)}
 																{origins.length === 1 && (
 																	<span className="highlight">
-																		{origins[0]}/{bar?.headRefName}
+																		{origins[0]}/{pending?.headRefName}
 																	</span>
 																)}
 															</span>
@@ -1754,62 +1681,99 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 					</div>
 					{!loading && !loadingBranchInfo && preconditionError.type && preconditionErrorMessages()}
 				</div>
-				<div style={{ height: "40px" }} />
-				{filesChanged.length > 0 && (
+				{showDiffs && (
 					<>
-						<PanelHeader className="no-padding" title="Comparing Changes"></PanelHeader>
-						{commitsBehindOrigin > 0 && (
+						<div style={{ height: "40px" }} />
+						{filesChanged.length > 0 && (
 							<>
-								<PRError>
-									<Icon name="info" />
-									<div style={{ marginRight: "10px" }}>
-										{commitsBehindOrigin} commit
-										{commitsBehindOrigin > 1 ? "s" : ""} behind base origin
-									</div>
-									<Button onClick={onPullSubmit} isLoading={pullSubmitting}>
-										Pull
-									</Button>
-								</PRError>
-								{unexpectedPullError && (
-									<div className="error-message form-error" style={{ marginBottom: "10px" }}>
-										<FormattedMessage
-											id="error.unexpected"
-											defaultMessage="Something went wrong! Please try again, or pull origin manually, or "
-										/>
-										<FormattedMessage id="contactSupport" defaultMessage="contact support">
-											{text => (
-												<Link href="https://docs.newrelic.com/docs/codestream/">{text}</Link>
-											)}
-										</FormattedMessage>
-										.
-									</div>
-								)}
+								<PanelHeader className="no-padding" title="Comparing Changes"></PanelHeader>
+								<PullLatest
+									commitsBehindOrigin={commitsBehindOrigin}
+									repoId={pending?.repoId}
+									branchName={pending?.baseRefName}
+								></PullLatest>
 							</>
+						)}
+						{showTooMany && (
+							<PRError onClick={() => setShowDiffsAnyway(true)}>
+								<Icon name="info" />
+								<div style={{ marginRight: "10px" }}>
+									{filesChanged.length} files in this diff. Displaying them may impact performance.
+								</div>
+								<Button>Show anyway</Button>
+							</PRError>
+						)}
+						{showDiffs && (
+							<PullRequestFilesChangedList
+								readOnly
+								isLoading={loadingBranchInfo || isLoadingDiffs}
+								repoId={pending?.repoId}
+								filesChanged={filesChanged}
+								baseRef={pending?.baseRefName!}
+								headRef={pending?.headRefName!}
+								baseRefName={pending?.baseRefName!}
+								headRefName={pending?.headRefName!}
+							/>
 						)}
 					</>
 				)}
-				{showTooMany && (
-					<PRError onClick={() => setShowDiffsAnyway(true)}>
-						<Icon name="info" />
-						<div style={{ marginRight: "10px" }}>
-							{filesChanged.length} files in this diff. Displaying them may impact performance.
-						</div>
-						<Button>Show anyway</Button>
-					</PRError>
-				)}
-				{showDiffs && (
-					<PullRequestFilesChangedList
-						readOnly
-						isLoading={loadingBranchInfo || isLoadingDiffs}
-						repoId={bar?.repoId}
-						filesChanged={filesChanged}
-						baseRef={bar?.baseRefName!}
-						headRef={bar?.headRefName!}
-						baseRefName={bar?.baseRefName!}
-						headRefName={bar?.headRefName!}
-					/>
-				)}
 			</span>
 		</Root>
+	);
+};
+
+export const PullLatest = (props: {
+	commitsBehindOrigin: number;
+	repoId?: string;
+	branchName?: string;
+}) => {
+	const [unexpectedPullError, setUnexpectedPullError] = useState(false);
+	const [pullSubmitting, setPullSubmitting] = useState(false);
+
+	if (props.commitsBehindOrigin < 1 || !props.repoId || !props.branchName) return null;
+
+	const onPullSubmit = async (event: React.SyntheticEvent) => {
+		setUnexpectedPullError(false);
+		setPullSubmitting(true);
+
+		try {
+			await HostApi.instance.send(FetchRemoteBranchRequestType, {
+				repoId: props.repoId!,
+				branchName: props.branchName!
+			});
+		} catch (error) {
+			logError(error, {});
+			logError(`Unexpected error during branch pulling : ${error}`, {});
+			setUnexpectedPullError(true);
+		} finally {
+			setPullSubmitting(false);
+		}
+	};
+
+	return (
+		<>
+			<PRError>
+				<Icon name="info" />
+				<div style={{ marginRight: "10px" }}>
+					{props.commitsBehindOrigin} commit
+					{props.commitsBehindOrigin > 1 ? "s" : ""} behind base origin
+				</div>
+				<Button onClick={onPullSubmit} isLoading={pullSubmitting}>
+					Pull
+				</Button>
+			</PRError>
+			{unexpectedPullError && (
+				<div className="error-message form-error" style={{ marginBottom: "10px" }}>
+					<FormattedMessage
+						id="error.unexpected"
+						defaultMessage="Something went wrong! Please try again, or pull origin manually, or "
+					/>
+					<FormattedMessage id="contactSupport" defaultMessage="contact support">
+						{text => <Link href="https://docs.newrelic.com/docs/codestream/">{text}</Link>}
+					</FormattedMessage>
+					.
+				</div>
+			)}
+		</>
 	);
 };
