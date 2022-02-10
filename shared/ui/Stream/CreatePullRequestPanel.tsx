@@ -1382,12 +1382,12 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		);
 	};
 
-	const fetchFilesChanged = async (repoId: string, prBranch: string, reviewBranch: string) => {
+	const fetchFilesChanged = async (repoId: string, baseRefName: string, headRefName: string) => {
 		setIsLoadingDiffs(true);
 		const response = await HostApi.instance.send(DiffBranchesRequestType, {
 			repoId: repoId,
-			baseRef: prBranch,
-			headRef: reviewBranch
+			baseRef: baseRefName,
+			headRef: headRefName
 		});
 
 		if (response.error) {
