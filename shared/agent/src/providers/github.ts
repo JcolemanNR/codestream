@@ -912,11 +912,11 @@ export class GitHubProvider extends ThirdPartyIssueProviderBase<CSGitHubProvider
 				}
 			);
 			const pullRequest = createPullRequestResponse.createPullRequest.pullRequest;
-			const title = `#${pullRequest.number} ${pullRequest.title}`;
+
 			return {
 				url: pullRequest.url,
 				id: pullRequest.id,
-				title: title
+				title: `#${pullRequest.number} ${pullRequest.title}`
 			};
 		} catch (ex) {
 			Logger.error(ex, `${this.displayName}: createPullRequest`, {
