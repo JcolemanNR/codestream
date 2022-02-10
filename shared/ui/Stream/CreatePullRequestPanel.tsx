@@ -527,41 +527,23 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		setFormState({ message: "", type: "", url: "", id: "" });
 		setPreconditionError({ message: "", type: "", url: "", id: "" });
 		setPreconditionWarning({ message: "", type: "", url: "", id: "" });
-		const headRefName = acrossForks
-			? `${headForkedRepo.nameWithOwner}:${bar?.headRefName}`
-			: bar?.headRefName;
-		const providerRepositoryId = acrossForks ? baseForkedRepo.id : undefined;
-		try {
-			// let result = await HostApi.instance.send(
-			// 	CreatePullRequestRequestType,
 
-			// 	{
-			// 		reviewId: derivedState.reviewId!,
-			// 		repoId: prRepoId,
-			// 		providerId: prProviderId,
-			// 		title: prTitle,
-			// 		// description: prText,
-			// 		baseRefName: prBranch,
-			// 		headRefName: headRefName,
-			// 		providerRepositoryId: providerRepositoryId,
-			// 		remote: foo?.repo?.remoteUrl!,
-			// 		remoteName: prUpstreamOn && prUpstream ? prUpstream : undefined,
-			// 		addresses: addressesStatus
-			// 			? [{ title: derivedState.userStatus.label, url: derivedState.userStatus.ticketUrl }]
-			// 			: undefined,
-			// 		ideName: derivedState.ideName
-			// 	}
-			// );
+		const providerRepositoryId = acrossForks
+			? baseForkedRepo.id
+			: foo?.provider?.repo?.providerRepoId;
+		try {
 			const result = await HostApi.instance.send(CreatePullRequestRequestType, {
 				...bar!,
 				reviewId: derivedState.reviewId,
 				providerId: prProviderId,
 				title: prTitle,
-				// description: prText,
-				// baseRefName: prBranch,
-				headRefName: headRefName!,
+				isFork: acrossForks,
+				headRefRepoOwner: headForkedRepo?.owner,
+				headRefRepoNameWithOwner: headForkedRepo?.nameWithOwner,
+				headRefName: bar?.headRefName!,
 				providerRepositoryId: providerRepositoryId,
 				remote: foo?.repo?.remoteUrl!,
+				requiresRemoteBranch: prUpstreamOn && prUpstream != null,
 				remoteName: prUpstreamOn && prUpstream ? prUpstream : undefined,
 				addresses: addressesStatus
 					? [{ title: derivedState.userStatus.label, url: derivedState.userStatus.ticketUrl }]
@@ -1411,7 +1393,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		if (response.error) {
 			setFilesChanged([]);
 		} else if (response && response.filesChanged) {
-			const { patches, data } = response.filesChanged;
+			const { patches } = response.filesChanged;
 			const filesChanged = patches
 				.map(_ => {
 					const fileName = _.newFileName === "/dev/null" ? _.oldFileName : _.newFileName;

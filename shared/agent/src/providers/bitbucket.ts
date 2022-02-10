@@ -27,6 +27,7 @@ import {
 	GetMyPullRequestsResponse,
 	MoveThirdPartyCardRequest,
 	MoveThirdPartyCardResponse,
+	ProviderGetForkedReposResponse,
 	ThirdPartyProviderCard
 } from "../protocol/agent.protocol";
 import { CSBitbucketProviderInfo } from "../protocol/api.protocol";
@@ -37,6 +38,7 @@ import {
 	getRemotePaths,
 	ProviderCreatePullRequestRequest,
 	ProviderCreatePullRequestResponse,
+	ProviderGetRepoInfoResponse,
 	ProviderPullRequestInfo,
 	PullRequestComment,
 	REFRESH_TIMEOUT,
@@ -134,7 +136,6 @@ interface GetPullRequestCommentsResponse extends BitbucketValues<BitbucketPullRe
 @lspProvider("bitbucket")
 export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketProviderInfo>
 	implements ThirdPartyProviderSupportsIssues, ThirdPartyProviderSupportsPullRequests {
-	private _bitbucketUserId: string | undefined;
 	private _knownRepos = new Map<string, BitbucketRepo>();
 	private _reposWithIssues: BitbucketRepo[] = [];
 
@@ -176,7 +177,6 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 
 	async onConnected(providerInfo?: CSBitbucketProviderInfo) {
 		super.onConnected(providerInfo);
-		this._bitbucketUserId = await this.getMemberId();
 		this._knownRepos = new Map<string, BitbucketRepo>();
 	}
 
@@ -451,7 +451,7 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 		}
 	}
 
-	async getRepoInfo(request: { remote: string }): Promise<any> {
+	async getRepoInfo(request: { remote: string }): Promise<ProviderGetRepoInfoResponse> {
 		try {
 			const { owner, name } = this.getOwnerFromRemote(request.remote);
 			const repoResponse = await this.get<BitBucketRepo>(`/repositories/${owner}/${name}`);
@@ -471,6 +471,9 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 			}
 			return {
 				id: repoResponse.body.uuid,
+				owner,
+				name,
+				isFork: repoResponse.body.parent != null,
 				defaultBranch:
 					repoResponse.body &&
 					repoResponse.body.mainbranch &&
@@ -491,6 +494,40 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 				}
 			};
 		}
+	}
+
+	async getForkedRepos(request: { remote: string }): Promise<ProviderGetForkedReposResponse> {
+		const { owner, name } = this.getOwnerFromRemote(request.remote);
+
+		const repoResponse = await this.get<BitBucketRepo>(`/repositories/${owner}/${name}`);
+		const parent = repoResponse.body.parent || {};
+		let forkResponse;
+		if (parent) {
+			forkResponse = await this.get<any>(`/repositories/${parent.full_name}/forks`);
+		}
+
+		return {
+			self: {
+				nameWithOwner: repoResponse.body.full_name,
+				owner: repoResponse.body.full_name,
+				id: repoResponse.body.uuid
+			},
+			parent: {
+				nameWithOwner: parent.full_name,
+				owner: parent.full_name,
+				id: parent.uuid
+			},
+			forks: (forkResponse?.body?.values).map((fork: any) => ({
+				nameWithOwner: fork.full_name,
+				owner: {
+					login: fork.slug
+				},
+				id: fork.uuid
+				// refs: {
+				// 	nodes: branchesByProjectId.get(fork.id)!.map(branch => ({ name: branch.name }))
+				// }
+			}))
+		};
 	}
 
 	private _commentsByRepoAndPath = new Map<
@@ -662,11 +699,13 @@ interface BitBucketCreatePullRequestResponse {
 }
 
 interface BitBucketRepo {
+	full_name: string;
 	uuid: string;
 	mainbranch?: {
 		name?: string;
 		type?: string;
 	};
+	parent?: any;
 }
 
 interface BitBucketPullRequest {

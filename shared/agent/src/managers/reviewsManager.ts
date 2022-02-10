@@ -655,6 +655,8 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			let remoteUrl: string | undefined = undefined;
 			let providerId: string | undefined = undefined;
 			let providerName: string | undefined = undefined;
+			let providerRepoId: string | undefined = undefined;
+			let owner: string | undefined = undefined;
 			const user = await users.getMe();
 			if (!user) {
 				Logger.warn("Could not find CSMe user");
@@ -706,11 +708,13 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 						}
 					}
 					success = true;
+					providerRepoId = providerRepoInfo.id;
 					providerId = providerRepo.providerId;
 					providerName = providerRepo.providerName;
 					remotes = providerRepo.remotes;
 					isFork = providerRepoInfo.isFork;
 					nameWithOwner = providerRepoInfo.nameWithOwner;
+					owner = providerRepoInfo.owner;
 				}
 			}
 
@@ -807,17 +811,17 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 						8
 					),
 					repo: {
+						providerRepoId,
 						defaultBranch: providerRepoDefaultBranch,
 						isFork,
+						owner,
 						nameWithOwner
 					}
 				},
-
 				review: {
 					title: review ? review.title : "",
 					text: review ? review.text : ""
 				},
-
 				warning: warning
 			};
 		} catch (ex) {
@@ -860,7 +864,7 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			}
 
 			// if we have this, then we want to create the branch's remote
-			if (request.remoteName && repoId) {
+			if (request.requiresRemoteBranch && request.remoteName && repoId) {
 				Logger.log(
 					`createPullRequest: attempting to create remote? remoteName=${request.remoteName} repoId=${repoId}`
 				);
@@ -927,7 +931,6 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 						result && result.error && result.error.message ? result.error.message : ""
 					}`
 				);
-
 				return {
 					success: false,
 					error: {

@@ -41,6 +41,7 @@ import {
 	MoveThirdPartyCardRequest,
 	MoveThirdPartyCardResponse,
 	Note,
+	ProviderGetForkedReposResponse,
 	ThirdPartyProviderConfig
 } from "../protocol/agent.protocol";
 import { CSGitLabProviderInfo } from "../protocol/api.protocol";
@@ -58,7 +59,6 @@ import {
 	getRemotePaths,
 	ProviderCreatePullRequestRequest,
 	ProviderCreatePullRequestResponse,
-	ProviderGetForkedReposResponse,
 	ProviderGetRepoInfoResponse,
 	ProviderVersion,
 	PullRequestComment,
@@ -573,6 +573,8 @@ export class GitLabProvider extends ThirdPartyIssueProviderBase<CSGitLabProvider
 			}
 
 			return {
+				owner,
+				name,
 				id: (projectResponse.body.iid || projectResponse.body.id)!.toString(),
 				defaultBranch: projectResponse.body.default_branch,
 				isFork: projectResponse.body.forked_from_project != null,
@@ -604,7 +606,6 @@ export class GitLabProvider extends ThirdPartyIssueProviderBase<CSGitLabProvider
 
 	async getForkedRepos(request: { remote: string }): Promise<ProviderGetForkedReposResponse> {
 		try {
-			const { remote } = request;
 			const { owner, name } = this.getOwnerFromRemote(request.remote);
 
 			const projectResponse = await this.get<GitLabProject>(
@@ -633,9 +634,7 @@ export class GitLabProvider extends ThirdPartyIssueProviderBase<CSGitLabProvider
 			return {
 				parent: {
 					nameWithOwner: parentProject.path_with_namespace,
-					owner: {
-						login: parentProject.namespace.path
-					},
+					owner: parentProject.namespace.path,
 					id: parentProject.id,
 					refs: {
 						nodes: branchesByProjectId.get(parentProject.id)!.map(branch => ({ name: branch.name }))
@@ -643,9 +642,7 @@ export class GitLabProvider extends ThirdPartyIssueProviderBase<CSGitLabProvider
 				},
 				forks: forksResponse.body.map(fork => ({
 					nameWithOwner: fork.path_with_namespace,
-					owner: {
-						login: fork.namespace.path
-					},
+					owner: fork.namespace.path,
 					id: fork.id,
 					refs: {
 						nodes: branchesByProjectId.get(fork.id)!.map(branch => ({ name: branch.name }))

@@ -327,7 +327,9 @@ export interface CheckPullRequestPreconditionsResponse {
 		remotes?: any[];
 	};
 	provider?: {
+		/** CS-specific providerId like github*com */
 		id?: string;
+		/** for github, this would be GitHub */
 		name?: string;
 		isConnected?: boolean;
 
@@ -337,9 +339,17 @@ export interface CheckPullRequestPreconditionsResponse {
 		pullRequestTemplateLinesCount?: number;
 
 		repo?: {
+			/** this is the provider-specific repository id */
+			providerRepoId?: string;
+			/**
+			 * default branch: master, main, something else...
+			 */
 			defaultBranch?: string;
 			isFork?: boolean;
+			/** in github.com/TeamCodeStream/codestream this is TeamCodeStream/codestream */
 			nameWithOwner?: string;
+			/** in github.com/TeamCodeStream/codestream this is TeamCodeStream */
+			owner?: string;
 		};
 	};
 
@@ -370,6 +380,38 @@ export const CheckPullRequestPreconditionsRequestType = new RequestType<
 	void
 >("codestream/review/pr/checkPreconditions");
 
+export interface CreatePullRequestRequest1 {
+	/** if a reviewId isn't provided, you must provide a repoId */
+	reviewId?: string;
+	/** CodeStream repo id */
+	repoId?: string;
+	providerId: string;
+
+	title: string;
+	description?: string;
+
+	/**
+	 * this is the target branch
+	 */
+	baseRefName: string;
+	/**
+	 * this is the branch under review
+	 */
+	headRefName: string;
+
+	/**
+	 * certain providers require this
+	 */
+	providerRepositoryId?: string;
+	remote: string /* to look up the repo ID on the provider */;
+	remoteName?: string;
+	addresses?: {
+		title: string;
+		url: string;
+	}[];
+	ideName?: string;
+}
+
 export interface CreatePullRequestRequest {
 	/** if a reviewId isn't provided, you must provide a repoId */
 	reviewId?: string;
@@ -380,13 +422,18 @@ export interface CreatePullRequestRequest {
 	title: string;
 	description?: string;
 
+	isFork?: boolean;
+	baseRefRepoName: string;
 	baseRefName: string;
 
-	// review branch
+	headRefRepoOwner?: string;
+	headRefRepoNameWithOwner: string;
 	headRefName: string;
 
 	providerRepositoryId?: string /* for use across forks */;
 	remote: string /* to look up the repo ID on the provider */;
+
+	requiresRemoteBranch?: boolean;
 	remoteName?: string;
 	addresses?: {
 		title: string;

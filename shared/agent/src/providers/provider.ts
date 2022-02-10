@@ -1213,29 +1213,53 @@ export interface ProviderPullRequestInfo {
 }
 
 export interface ProviderGetRepoInfoResponse {
+	/**
+	 * id of the repository from the provider
+	 */
 	id?: string;
-	isFork: boolean;
-	defaultBranch?: string;
+	/**
+	 * in github.com/TeamCodeStream/codestream this is TeamCodeStream/codestream
+	 */
 	nameWithOwner?: string;
+	/**
+	 * in github.com/TeamCodeStream/codestream this is TeamCodeStream
+	 */
+	owner?: string;
+	/**
+	 * in github.com/TeamCodeStream/codestream this is codestream
+	 */
+	name?: string;
+	/**
+	 * is this repo forked
+	 */
+	isFork?: boolean;
+	/**
+	 * defaultBranch: main, master, something else
+	 */
+	defaultBranch?: string;
+	/**
+	 * currently open pull requests
+	 */
 	pullRequests?: ProviderPullRequestInfo[];
-	error?: { message?: string; type: string };
-}
 
-export interface ProviderGetForkedReposResponse {
-	parent?: any;
-	forks?: any[];
-	self?: any;
 	error?: { message?: string; type: string };
+	// used for some providers
+	key?: string;
 }
 
 export interface ProviderCreatePullRequestRequest {
 	providerId: string;
 	providerRepositoryId?: string /* for use across forks */;
+	isFork?: boolean;
 	remote: string /* to look up the repo ID on the provider */;
 	title: string;
 	description?: string;
 	baseRefName: string;
 	headRefName: string;
+	/**
+	 * some providers, like GitHub need this for forks
+	 */
+	headRefRepoOwner?: string;
 	metadata: {
 		reviewPermalink?: string;
 		reviewers?: { name: string }[];

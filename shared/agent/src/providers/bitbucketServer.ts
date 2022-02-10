@@ -6,13 +6,18 @@ import { URI } from "vscode-uri";
 import { SessionContainer } from "../container";
 import { toRepoName } from "../git/utils";
 import { Logger } from "../logger";
-import { DocumentMarker, ProviderConfigurationData } from "../protocol/agent.protocol";
+import {
+	DocumentMarker,
+	ProviderConfigurationData,
+	ProviderGetForkedReposResponse
+} from "../protocol/agent.protocol";
 import { CSBitbucketProviderInfo } from "../protocol/api.protocol";
-import { Arrays, log, lspProvider, Strings } from "../system";
+import { log, lspProvider, Strings } from "../system";
 import {
 	getRemotePaths,
 	ProviderCreatePullRequestRequest,
 	ProviderCreatePullRequestResponse,
+	ProviderGetRepoInfoResponse,
 	ProviderPullRequestInfo,
 	PullRequestComment,
 	REFRESH_TIMEOUT,
@@ -276,7 +281,7 @@ export class BitbucketServerProvider extends ThirdPartyIssueProviderBase<CSBitbu
 					id: request.headRefName,
 					repository: {
 						project: {
-							key: repoInfo.project.key
+							key: repoInfo.key!
 						},
 						slug: name
 					}
@@ -285,7 +290,7 @@ export class BitbucketServerProvider extends ThirdPartyIssueProviderBase<CSBitbu
 					id: request.baseRefName,
 					repository: {
 						project: {
-							key: repoInfo.project.key
+							key: repoInfo.key!
 						},
 						slug: name
 					}
@@ -319,7 +324,7 @@ export class BitbucketServerProvider extends ThirdPartyIssueProviderBase<CSBitbu
 		}
 	}
 
-	async getRepoInfo(request: { remote: string }): Promise<any> {
+	async getRepoInfo(request: { remote: string }): Promise<ProviderGetRepoInfoResponse> {
 		try {
 			const { owner, name } = this.getOwnerFromRemote(request.remote);
 			const repoResponse = await this.get<BitbucketServerRepo>(`/projects/${owner}/repos/${name}`);
@@ -346,10 +351,10 @@ export class BitbucketServerProvider extends ThirdPartyIssueProviderBase<CSBitbu
 				});
 			}
 			return {
+				owner,
+				name,
 				id: repoResponse.body.id,
-				project: {
-					key: repoResponse.body.project.key
-				},
+				key: repoResponse.body.project.key,
 				defaultBranch: defaultBranchName,
 				pullRequests: pullRequests
 			};
@@ -364,6 +369,14 @@ export class BitbucketServerProvider extends ThirdPartyIssueProviderBase<CSBitbu
 				}
 			};
 		}
+	}
+
+	async getForkedRepos(request: { remote: string }): Promise<ProviderGetForkedReposResponse> {
+		// TODO fix me
+		return {
+			parent: {},
+			forks: []
+		};
 	}
 
 	private _commentsByRepoAndPath = new Map<

@@ -1203,3 +1203,57 @@ export interface ErrorGroup {
 		};
 	};
 }
+
+export interface ProviderGetForkedReposResponse {
+	parent?: {
+		defaultBranchRef?: {
+			name: string;
+		};
+		forks?: any[];
+		id?: any;
+		name?: string;
+		nameWithOwner?: string;
+		owner?: string;
+		parent?: {
+			id?: string;
+			name?: string;
+			nameWithOwner?: string;
+		};
+		refs?: {
+			nodes?: any[];
+		};
+		url?: string;
+	};
+	forks?: {
+		defaultBranchRef?: {
+			name: string;
+		};
+		id?: any;
+		name?: string;
+		nameWithOwner?: string;
+		owner?: string;
+		refs?: {
+			nodes?: any[];
+		};
+	}[];
+	self?: {
+		defaultBranchRef?: {
+			name: string;
+		};
+		forks?: any[];
+		id?: any;
+		name?: string;
+		nameWithOwner?: string;
+		owner?: string;
+		parent?: {
+			id?: string;
+			name?: string;
+			nameWithOwner?: string;
+		};
+		refs?: {
+			nodes?: any[];
+		};
+		url?: string;
+	};
+	error?: { message?: string; type: string };
+}
