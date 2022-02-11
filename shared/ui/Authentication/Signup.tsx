@@ -423,7 +423,6 @@ export const Signup = (props: Props) => {
 
 	if (!derivedState.acceptedTOS && props.tosType && props.tosType === "Interstitial")
 		return <PresentTOS />;
-	);
 
 	return (
 		<div className="onboarding-page">
