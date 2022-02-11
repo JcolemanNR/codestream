@@ -965,6 +965,7 @@ export class GitHubProvider extends ThirdPartyIssueProviderBase<CSGitHubProvider
 								createdAt
 								baseRefName
 								headRefName
+								headRepository { nameWithOwner }
 							}
 						}
 					}
@@ -975,15 +976,19 @@ export class GitHubProvider extends ThirdPartyIssueProviderBase<CSGitHubProvider
 					name: name
 				}
 			);
-			return {
+			const result = {
 				id: response.repository.id,
 				isFork: response.repository.isFork,
 				nameWithOwner: response.repository.nameWithOwner,
 				defaultBranch: response.repository.defaultBranchRef.name,
-				pullRequests: response.repository.pullRequests.nodes,
+				pullRequests: response.repository.pullRequests.nodes.map((_: any) => ({
+					..._,
+					nameWithOwner: _.headRepository.nameWithOwner
+				})),
 				owner: owner,
 				name: name
 			};
+			return result;
 		} catch (ex) {
 			Logger.error(ex, "GitHub: getRepoInfo", {
 				remote: request.remote

@@ -112,6 +112,7 @@ const PRDropdown = styled.div`
 	white-space: nowrap;
 `;
 
+const lastStep = 4;
 // select service
 const Step1 = props => (props.step !== 1 ? null : <div>{props.children}</div>);
 
@@ -122,7 +123,7 @@ const Step2 = props => (props.step !== 2 ? null : <div>{props.children}</div>);
 const Step3 = props => (props.step !== 3 ? null : <div>{props.children}</div>);
 
 // success! PR was created but we need to link to the web site
-const Step4 = props => (props.step !== 4 ? null : <div>{props.children}</div>);
+const Step4 = props => (props.step !== lastStep ? null : <div>{props.children}</div>);
 
 const EMPTY_ERROR = { message: "", type: "", url: "", id: "" };
 const EMPTY_WARNING = { message: "", type: "", url: "", id: "" };
@@ -504,6 +505,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				providerId: prProviderId,
 				title: prTitle,
 				isFork: acrossForks,
+				baseRefRepoNameWithOwner: baseForkedRepo?.nameWithOwner,
 				headRefRepoOwner: headForkedRepo?.owner,
 				headRefRepoNameWithOwner: headForkedRepo?.nameWithOwner,
 				headRefName: pending?.headRefName!,
@@ -681,7 +683,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				setForkedRepos(forks);
 				setParentRepo(response.parent);
 				setBaseForkedRepo(response.parent);
-				setHeadForkedRepo(response.self || response.parent);
+				setHeadForkedRepo(response.self);
 			}
 		} catch (ex) {
 			console.warn("getForkedRepos", ex);
@@ -758,18 +760,17 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		return (
 			<span>
 				<DropdownButton variant="secondary" items={items}>
-					<span className="subtle">base:</span> <strong>{pending?.baseRefName}</strong>
+					<span className="subtle">{prLabel.repoBranchBaseLabel}</span>{" "}
+					<strong>{pending?.baseRefName}</strong>
 				</DropdownButton>
 			</span>
 		);
 	};
 
-	const renderCompareBranchesDropdown = () => {
+	const renderHeadBranchesDropdown = () => {
 		if (!model || !model.repo) return null;
 
-		if (acrossForks) return renderCompareBranchesAcrossForksDropdown();
-
-		const items = model?.repo?.branches!.map(_ => {
+		const items = model.repo.branches!.map(_ => {
 			return {
 				label: _,
 				searchLabel: _,
@@ -797,8 +798,9 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		);
 	};
 
-	const renderCompareBranchesAcrossForksDropdown = () => {
+	const renderHeadBranchesAcrossForksDropdown = () => {
 		if (!headForkedRepo || !headForkedRepo.refs) return null;
+
 		const items = headForkedRepo.refs.nodes.map(_ => {
 			return {
 				label: _.name,
@@ -820,7 +822,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		}
 		return (
 			<DropdownButton variant="secondary" items={items}>
-				<span className="subtle">compare:</span> <strong>{pending?.headRefName}</strong>
+				<span className="subtle">{prLabel.repoBranchHeadLabel}:</span>{" "}
+				<strong>{pending?.headRefName}</strong>
 			</DropdownButton>
 		);
 	};
@@ -894,7 +897,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		);
 	};
 
-	const renderCompareReposAcrossForksDropdown = () => {
+	const renderHeadReposAcrossForksDropdown = () => {
 		const items = forkedRepos.map(repo => {
 			const repoName = repo.nameWithOwner;
 			return {
@@ -1352,7 +1355,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 	}
 
 	const tooManyDiffs = filesChanged && filesChanged.length > 100;
-	const showDiffs = !acrossForks && (!tooManyDiffs || showDiffsAnyway);
+	const showDiffs = currentStep !== lastStep && !acrossForks && (!tooManyDiffs || showDiffsAnyway);
 	const showTooMany = !acrossForks && tooManyDiffs && !showDiffsAnyway;
 
 	return (
@@ -1412,10 +1415,10 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 													<PRDropdown>
 														<Icon name="arrow-left" />
-														{renderCompareReposAcrossForksDropdown()}
+														{renderHeadReposAcrossForksDropdown()}
 													</PRDropdown>
 
-													<PRDropdown>{renderCompareBranchesDropdown()}</PRDropdown>
+													<PRDropdown>{renderHeadBranchesAcrossForksDropdown()}</PRDropdown>
 												</>
 											) : (
 												<>
@@ -1432,7 +1435,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 													<PRDropdown>
 														<Icon name="arrow-left" />
-														{renderCompareBranchesDropdown()}
+														{renderHeadBranchesDropdown()}
 													</PRDropdown>
 												</>
 											)}

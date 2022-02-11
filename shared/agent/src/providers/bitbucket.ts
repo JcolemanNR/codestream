@@ -416,15 +416,38 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 				};
 			}
 			const { owner, name } = this.getOwnerFromRemote(request.remote);
-			const createPullRequestResponse = await this.post<
-				BitBucketCreatePullRequestRequest,
-				BitBucketCreatePullRequestResponse
-			>(`/repositories/${owner}/${name}/pullrequests`, {
-				source: { branch: { name: request.headRefName } },
-				destination: { branch: { name: request.baseRefName } },
-				title: request.title,
-				description: this.createDescription(request)
-			});
+			let createPullRequestResponse;
+			if (request.isFork) {
+				createPullRequestResponse = await this.post<
+					BitBucketCreatePullRequestRequest,
+					BitBucketCreatePullRequestResponse
+				>(`/repositories/${request.baseRefRepoNameWithOwner}/pullrequests`, {
+					source: {
+						branch: { name: request.headRefName },
+						repository: {
+							full_name: request.headRefRepoNameWithOwner
+						}
+					},
+					destination: {
+						branch: { name: request.baseRefName },
+						repository: {
+							full_name: request.baseRefRepoNameWithOwner
+						}
+					},
+					title: request.title,
+					description: this.createDescription(request)
+				});
+			} else {
+				createPullRequestResponse = await this.post<
+					BitBucketCreatePullRequestRequest,
+					BitBucketCreatePullRequestResponse
+				>(`/repositories/${owner}/${name}/pullrequests`, {
+					source: { branch: { name: request.headRefName } },
+					destination: { branch: { name: request.baseRefName } },
+					title: request.title,
+					description: this.createDescription(request)
+				});
+			}
 
 			const title = `#${createPullRequestResponse.body.id} ${createPullRequestResponse.body.title}`;
 			return {
@@ -465,7 +488,8 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 						id: _.id,
 						url: _.links!.html!.href,
 						baseRefName: _.destination.branch.name,
-						headRefName: _.source.branch.name
+						headRefName: _.source.branch.name,
+						nameWithOwner: _.source.repository.full_name
 					};
 				});
 			}
@@ -473,6 +497,7 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 				id: repoResponse.body.uuid,
 				owner,
 				name,
+				nameWithOwner: `${owner}/${name}`,
 				isFork: repoResponse.body.parent != null,
 				defaultBranch:
 					repoResponse.body &&
@@ -497,37 +522,85 @@ export class BitbucketProvider extends ThirdPartyIssueProviderBase<CSBitbucketPr
 	}
 
 	async getForkedRepos(request: { remote: string }): Promise<ProviderGetForkedReposResponse> {
-		const { owner, name } = this.getOwnerFromRemote(request.remote);
+		try {
+			const { owner, name } = this.getOwnerFromRemote(request.remote);
 
-		const repoResponse = await this.get<BitBucketRepo>(`/repositories/${owner}/${name}`);
-		const parent = repoResponse.body.parent || {};
-		let forkResponse;
-		if (parent) {
-			forkResponse = await this.get<any>(`/repositories/${parent.full_name}/forks`);
-		}
+			const repoResponse = await this.get<BitBucketRepo>(`/repositories/${owner}/${name}`);
 
-		return {
-			self: {
-				nameWithOwner: repoResponse.body.full_name,
-				owner: repoResponse.body.full_name,
-				id: repoResponse.body.uuid
-			},
-			parent: {
-				nameWithOwner: parent.full_name,
-				owner: parent.full_name,
-				id: parent.uuid
-			},
-			forks: (forkResponse?.body?.values).map((fork: any) => ({
-				nameWithOwner: fork.full_name,
-				owner: {
-					login: fork.slug
+			const parentOrSelfProject = repoResponse.body.parent
+				? repoResponse.body.parent
+				: repoResponse.body;
+
+			const branchesByProjectId = new Map<string, any[]>();
+			if (repoResponse.body.parent) {
+				const branchesResponse = await this.get<any[]>(
+					`/repositories/${repoResponse.body.parent.full_name}/refs`
+				);
+				branchesByProjectId.set(repoResponse.body.parent.uuid, branchesResponse.body.values as any);
+			}
+			const branchesResponse = await this.get<any[]>(
+				`/repositories/${repoResponse.body.full_name}/refs`
+			);
+			branchesByProjectId.set(repoResponse.body.uuid, branchesResponse.body.values as any);
+
+			const forksResponse = await this.get<any>(
+				`/repositories/${parentOrSelfProject.full_name}/forks`
+			);
+
+			for (const project of forksResponse.body.values) {
+				const branchesResponse = await this.get<any[]>(`/repositories/${project.full_name}/refs`);
+				branchesByProjectId.set(project.uuid, branchesResponse.body.values as any);
+			}
+
+			const response = {
+				self: {
+					nameWithOwner: repoResponse.body.full_name,
+					owner: owner,
+					id: repoResponse.body.uuid,
+					refs: {
+						nodes: branchesByProjectId
+							.get(repoResponse.body.uuid)!
+							.map(branch => ({ name: branch.name }))
+					}
 				},
-				id: fork.uuid
-				// refs: {
-				// 	nodes: branchesByProjectId.get(fork.id)!.map(branch => ({ name: branch.name }))
-				// }
-			}))
-		};
+				forks: (forksResponse?.body?.values).map((fork: any) => ({
+					nameWithOwner: fork.full_name,
+					owner: fork.slug,
+					id: fork.uuid,
+					refs: {
+						nodes: branchesByProjectId.get(fork.uuid)!.map(branch => ({ name: branch.name }))
+					}
+				}))
+			} as ProviderGetForkedReposResponse;
+			if (repoResponse.body.parent) {
+				response.parent = {
+					nameWithOwner: parentOrSelfProject.full_name,
+					owner: parentOrSelfProject.full_name,
+					id: parentOrSelfProject.uuid,
+					refs: {
+						nodes: branchesByProjectId
+							.get(parentOrSelfProject.uuid)!
+							.map(branch => ({ name: branch.name }))
+					}
+				};
+			}
+			return response;
+		} catch (ex) {
+			Logger.error(ex, `${this.providerConfig.id}: getForkedRepos`, {
+				remote: request.remote
+			});
+			let errorMessage =
+				ex.response && ex.response.errors
+					? ex.response.errors[0].message
+					: `Unknown ${this.providerConfig.name} error`;
+			errorMessage = `${this.providerConfig.name}: ${errorMessage}`;
+			return {
+				error: {
+					type: "PROVIDER",
+					message: errorMessage
+				}
+			};
+		}
 	}
 
 	private _commentsByRepoAndPath = new Map<
@@ -680,11 +753,17 @@ interface BitBucketCreatePullRequestRequest {
 		branch: {
 			name: string;
 		};
+		repository?: {
+			full_name?: string;
+		};
 	};
 
 	destination: {
 		branch: {
 			name: string;
+		};
+		repository?: {
+			full_name?: string;
 		};
 	};
 	title: string;
@@ -714,6 +793,9 @@ interface BitBucketPullRequest {
 		source: {
 			branch: {
 				name: string;
+			};
+			repository: {
+				full_name: string;
 			};
 		};
 

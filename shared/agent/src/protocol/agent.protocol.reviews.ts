@@ -416,13 +416,13 @@ export interface CreatePullRequestRequest {
 	/** if a reviewId isn't provided, you must provide a repoId */
 	reviewId?: string;
 
-	// branchName?: string;
 	repoId?: string;
 	providerId: string;
 	title: string;
 	description?: string;
 
 	isFork?: boolean;
+	baseRefRepoNameWithOwner?: string;
 	baseRefRepoName: string;
 	baseRefName: string;
 

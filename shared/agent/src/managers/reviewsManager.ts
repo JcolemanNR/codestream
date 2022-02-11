@@ -677,7 +677,8 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 					if (providerRepoInfo.pullRequests?.length) {
 						if (baseRefName && headRefName) {
 							const existingPullRequest = providerRepoInfo.pullRequests.find(
-								(_: any) => _.baseRefName === baseRefName && _.headRefName === headRefName
+								(_: any) => _.baseRefName === baseRefName && _.headRefName === headRefName 
+								&& _.nameWithOwner === providerRepoInfo.nameWithOwner
 							);
 							if (existingPullRequest) {
 								return {

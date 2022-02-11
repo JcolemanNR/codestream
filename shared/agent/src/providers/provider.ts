@@ -1208,6 +1208,7 @@ export interface ProviderGetRepoInfoRequest {
 export interface ProviderPullRequestInfo {
 	id: string;
 	url: string;
+	nameWithOwner?: string;
 	baseRefName: string;
 	headRefName: string;
 }
@@ -1254,12 +1255,16 @@ export interface ProviderCreatePullRequestRequest {
 	remote: string /* to look up the repo ID on the provider */;
 	title: string;
 	description?: string;
+
 	baseRefName: string;
+	baseRefRepoNameWithOwner?: string;
+
 	headRefName: string;
 	/**
 	 * some providers, like GitHub need this for forks
 	 */
 	headRefRepoOwner?: string;
+	headRefRepoNameWithOwner?: string;
 	metadata: {
 		reviewPermalink?: string;
 		reviewers?: { name: string }[];
