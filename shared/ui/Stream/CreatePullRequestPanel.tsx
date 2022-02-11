@@ -201,16 +201,21 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 	const [loadingBranchInfo, setLoadingBranchInfo] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
 	const [isWaiting, setIsWaiting] = useState(false);
-	// warnings + errors
+	const [isLoadingDiffs, setIsLoadingDiffs] = useState(false);
+
+	// server warnings + errors
 	const [preconditionError, setPreconditionError] = useState(EMPTY_ERROR);
 	const [preconditionWarning, setPreconditionWarning] = useState(EMPTY_WARNING);
 	const [unexpectedError, setUnexpectedError] = useState(false);
 	const [formState, setFormState] = useState({ message: "", type: "", url: "", id: "" });
-	// validation
+
+	// client validation
 	const [titleValidity, setTitleValidity] = useState(true);
+
 	// lifecycle
 	const [hasMounted, setHasMounted] = useState(false);
 	const [currentStep, setCurrentStep] = useState(0);
+
 	// agent
 	// this is the initial data request payload
 	const [model, setModel] = useState<CheckPullRequestPreconditionsResponse | undefined>();
@@ -225,30 +230,28 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 	// pending PR values
 	const [prTitle, setPrTitle] = useState("");
 	const [prTextTouched, setPrTextTouched] = useState(false);
-	const [prRemoteNameCreationRequired, setPrRemoteNameCreationRequired] = useState(true);
-	const [prRemoteName, setPrRemoteName] = useState("");
 
-	// post PR created values
+	const [prRemoteNameCreationRequested, setPrRemoteNameCreationRequested] = useState(true);
+	const [prRemoteName, setPrRemoteName] = useState("");
+	const [originList, setOriginList] = useState([] as string[]);
+
+	// post PR creation values
 	const [prUrl, setPrUrl] = useState("");
 
-	const [latestCommit, setLatestCommit] = useState("");
-	const [origins, setOrigins] = useState([] as string[]);
-	const [commitsBehindOrigin, setCommitsBehindOrigin] = useState(0);
-
-	const [addressesStatus, setAddressesStatus] = useState(true);
-
-	const [selectedRepo, setSelectedRepo] = useState<ReposScm | undefined>(undefined);
-	const [isLoadingDiffs, setIsLoadingDiffs] = useState(false);
-	const [filesChanged, setFilesChanged] = useState<any[]>([]);
-
-	const [propsForPrePRProviderInfoModal, setPropsForPrePRProviderInfoModal] = useState<any>();
-
+	// forks
 	const [acrossForks, setAcrossForks] = useState(false);
 	const [forkedRepos, setForkedRepos] = useState<any[]>([]);
 	const [parentRepo, setParentRepo] = useState<any>(undefined);
 	const [baseForkedRepo, setBaseForkedRepo] = useState<any>(undefined);
 	const [headForkedRepo, setHeadForkedRepo] = useState<any>(undefined);
-	const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+
+	// others
+	const [latestCommit, setLatestCommit] = useState("");
+	const [commitsBehindOrigin, setCommitsBehindOrigin] = useState(0);
+	const [addressesStatus, setAddressesStatus] = useState(true);
+	const [selectedRepo, setSelectedRepo] = useState<ReposScm | undefined>(undefined);
+	const [filesChanged, setFilesChanged] = useState<any[]>([]);
+	const [propsForPrePRProviderInfoModal, setPropsForPrePRProviderInfoModal] = useState<any>();
 
 	const fetchPreconditionDataRef = useRef((isRepoUpdate?: boolean) => {});
 
@@ -391,7 +394,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				} else if (result.warning && result.warning.type) {
 					if (result.warning.type === "REQUIRES_UPSTREAM") {
 						setPrRequiresUpstream(true);
-						setOrigins(result.repo?.origins!);
+						setOriginList(result.repo?.origins!);
 						setPrRemoteName(result.repo!.origins![0]);
 					} else {
 						setPreconditionWarning({
@@ -517,8 +520,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 					? baseForkedRepo.id
 					: model?.provider?.repo?.providerRepoId,
 				remote: model?.repo?.remoteUrl!,
-				requiresRemoteBranch: prRemoteNameCreationRequired && prRemoteName != null,
-				remoteName: prRemoteNameCreationRequired && prRemoteName ? prRemoteName : undefined,
+				requiresRemoteBranch: prRemoteNameCreationRequested && prRemoteName != null,
+				remoteName: prRemoteNameCreationRequested && prRemoteName ? prRemoteName : undefined,
 				addresses: addressesStatus
 					? [{ title: derivedState.userStatus.label, url: derivedState.userStatus.ticketUrl }]
 					: undefined,
@@ -637,7 +640,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 				if (result && result.warning && result.warning.type === "REQUIRES_UPSTREAM") {
 					setPrRequiresUpstream(true);
-					setOrigins(result.repo!.origins!);
+					setOriginList(result.repo!.origins!);
 					setPrRemoteName(result.repo!.origins![0]);
 				} else if (result && result.error) {
 					setPreconditionError({
@@ -1508,23 +1511,28 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 														<div style={{ marginBottom: "10px" }}>
 															<DropdownButton
 																variant="secondary"
-																selectedKey={selectedTemplate}
 																items={model?.provider?.pullRequestTemplateNames
 																	.map(name => {
-																		const path = `${name}.md`;
 																		return {
 																			label: name,
 																			key: name,
 																			action: async () => {
-																				const response = (await HostApi.instance.send(
-																					ReadTextFileRequestType,
-																					{
-																						path,
-																						baseDir: model?.provider?.pullRequestTemplatePath
-																					}
-																				)) as any;
-																				setSelectedTemplate(name);
-																				setPending({ ...pending!, description: response.contents });
+																				try {
+																					const response = (await HostApi.instance.send(
+																						ReadTextFileRequestType,
+																						{
+																							path: `${name}.md`,
+																							baseDir: model?.provider?.pullRequestTemplatePath
+																						}
+																					)) as any;
+
+																					setPending({
+																						...pending!,
+																						description: response.contents
+																					});
+																				} catch (ex) {
+																					console.warn(ex);
+																				}
 																			}
 																		} as any;
 																	})
@@ -1536,7 +1544,6 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 																			label: "No template",
 																			key: "__none__",
 																			action: async () => {
-																				setSelectedTemplate("__none__");
 																				setPending({ ...pending!, description: "" });
 																			}
 																		}
@@ -1566,30 +1573,30 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 													style={{ resize: "vertical" }}
 												/>
 											</div>
-											{prRequiresUpstream && origins && origins.length && (
+											{prRequiresUpstream && originList && originList.length && (
 												<div className="control-group">
 													<Checkbox
 														name="set-upstream"
-														checked={prRemoteNameCreationRequired}
+														checked={prRemoteNameCreationRequested}
 														onChange={e => {
 															const val = e.valueOf();
-															setPrRemoteNameCreationRequired(val);
-															if (origins && origins.length === 1) {
+															setPrRemoteNameCreationRequested(val);
+															if (originList && originList.length === 1) {
 																if (val) {
-																	setPrRemoteName(origins[0]);
+																	setPrRemoteName(originList[0]);
 																}
 															}
 														}}
 													>
 														<Tooltip
-															title={`This will run 'git push -u ${prRemoteName} ${pending?.headRefName}'`}
+															title={`This will run 'git push -u ${prRemoteName} ${pending?.headRefName}' before creating the ${prLabel.pullrequest}`}
 														>
 															<span className="subtle">
 																Set upstream to{" "}
-																{origins.length > 1 && (
+																{originList.length > 1 && (
 																	<DropdownButton
 																		variant="text"
-																		items={origins.map((_: any) => {
+																		items={originList.map((_: any) => {
 																			return {
 																				label: `${_}/${pending?.headRefName}`,
 																				key: _,
@@ -1599,12 +1606,12 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 																			};
 																		})}
 																	>
-																		{`${prRemoteName || origins[0]}/${pending?.headRefName}`}
+																		{`${prRemoteName || originList[0]}/${pending?.headRefName}`}
 																	</DropdownButton>
 																)}
-																{origins.length === 1 && (
+																{originList.length === 1 && (
 																	<span className="highlight">
-																		{origins[0]}/{pending?.headRefName}
+																		{originList[0]}/{pending?.headRefName}
 																	</span>
 																)}
 															</span>
