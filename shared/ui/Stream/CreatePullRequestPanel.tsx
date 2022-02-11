@@ -42,7 +42,7 @@ import {
 	setCurrentReview,
 	setNewPullRequestOptions
 } from "../store/context/actions";
-import { getPRLabel, getPRLabelForProvider, isConnected } from "../store/providers/reducer";
+import { getPRLabelForProvider, isConnected } from "../store/providers/reducer";
 import { useDidMount, useInterval, useTimeout } from "../utilities/hooks";
 import { inMillis } from "../utils";
 import { HostApi } from "../webview-api";
@@ -57,7 +57,6 @@ import { PRBranch, PRError } from "./PullRequestComponents";
 import { PullRequestFilesChangedList } from "./PullRequestFilesChangedList";
 import Tooltip from "./Tooltip";
 
-// TODO
 export const EMPTY_STATUS = {
 	label: "",
 	ticketId: "",
@@ -209,41 +208,46 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 	const [formState, setFormState] = useState({ message: "", type: "", url: "", id: "" });
 	// validation
 	const [titleValidity, setTitleValidity] = useState(true);
+	// lifecycle
+	const [hasMounted, setHasMounted] = useState(false);
+	const [currentStep, setCurrentStep] = useState(0);
 	// agent
 	// this is the initial data request payload
 	const [model, setModel] = useState<CheckPullRequestPreconditionsResponse | undefined>();
+	const [prRequiresUpstream, setPrRequiresUpstream] = useState(false);
 	// this is the request we're building up to create a pull request
 	const [pending, setPending] = useState<CreatePullRequestRequest | undefined>({} as any);
 	const [openRepos, setOpenRepos] = useState<ReposScm[]>([]);
 
+	const [prProviderId, setPrProviderId] = useState("");
+	const [prProviderIconName, setPrProviderIconName] = useState("");
+
+	// pending PR values
+	const [prTitle, setPrTitle] = useState("");
+	const [prTextTouched, setPrTextTouched] = useState(false);
+	const [prRemoteNameCreationRequired, setPrRemoteNameCreationRequired] = useState(true);
+	const [prRemoteName, setPrRemoteName] = useState("");
+
+	// post PR created values
+	const [prUrl, setPrUrl] = useState("");
+
 	const [latestCommit, setLatestCommit] = useState("");
 	const [origins, setOrigins] = useState([] as string[]);
 	const [commitsBehindOrigin, setCommitsBehindOrigin] = useState(0);
-	const [prProviderId, setPrProviderId] = useState("");
-	const [requiresUpstream, setRequiresUpstream] = useState(false);
 
-	const [prTitle, setPrTitle] = useState("");
-	const [prTextTouched, setPrTextTouched] = useState(false);
-
-	const [prProviderIconName, setPrProviderIconName] = useState("");
-	const [prUpstreamOn, setPrUpstreamOn] = useState(true);
-	const [prUpstream, setPrUpstream] = useState("");
 	const [addressesStatus, setAddressesStatus] = useState(true);
 
 	const [selectedRepo, setSelectedRepo] = useState<ReposScm | undefined>(undefined);
-	const [currentStep, setCurrentStep] = useState(0);
 	const [isLoadingDiffs, setIsLoadingDiffs] = useState(false);
 	const [filesChanged, setFilesChanged] = useState<any[]>([]);
 
 	const [propsForPrePRProviderInfoModal, setPropsForPrePRProviderInfoModal] = useState<any>();
-	const [prUrl, setPrUrl] = useState("");
-	const [hasMounted, setHasMounted] = useState(false);
+
 	const [acrossForks, setAcrossForks] = useState(false);
 	const [forkedRepos, setForkedRepos] = useState<any[]>([]);
 	const [parentRepo, setParentRepo] = useState<any>(undefined);
 	const [baseForkedRepo, setBaseForkedRepo] = useState<any>(undefined);
 	const [headForkedRepo, setHeadForkedRepo] = useState<any>(undefined);
-
 	const [selectedTemplate, setSelectedTemplate] = useState<string>("");
 
 	const fetchPreconditionDataRef = useRef((isRepoUpdate?: boolean) => {});
@@ -377,7 +381,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 
 				setCurrentStep(3);
 				fetchFilesChanged(args.repoId, newBaseRefName!, newHeadRefName);
-				setRequiresUpstream(false);
+				setPrRequiresUpstream(false);
 
 				if (newHeadRefName === newBaseRefName) {
 					if (!isFork) {
@@ -386,9 +390,9 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 					setFormState({ type: "", message: "", url: "", id: "" });
 				} else if (result.warning && result.warning.type) {
 					if (result.warning.type === "REQUIRES_UPSTREAM") {
-						setRequiresUpstream(true);
+						setPrRequiresUpstream(true);
 						setOrigins(result.repo?.origins!);
-						setPrUpstream(result.repo!.origins![0]);
+						setPrRemoteName(result.repo!.origins![0]);
 					} else {
 						setPreconditionWarning({
 							type: result.warning.type,
@@ -513,8 +517,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 					? baseForkedRepo.id
 					: model?.provider?.repo?.providerRepoId,
 				remote: model?.repo?.remoteUrl!,
-				requiresRemoteBranch: prUpstreamOn && prUpstream != null,
-				remoteName: prUpstreamOn && prUpstream ? prUpstream : undefined,
+				requiresRemoteBranch: prRemoteNameCreationRequired && prRemoteName != null,
+				remoteName: prRemoteNameCreationRequired && prRemoteName ? prRemoteName : undefined,
 				addresses: addressesStatus
 					? [{ title: derivedState.userStatus.label, url: derivedState.userStatus.ticketUrl }]
 					: undefined,
@@ -629,12 +633,12 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				setPreconditionError({ type: "", message: "", url: "", id: "" });
 				setPreconditionWarning({ type: "", message: "", url: "", id: "" });
 				setFormState({ type: "", message: "", url: "", id: "" });
-				setRequiresUpstream(false);
+				setPrRequiresUpstream(false);
 
 				if (result && result.warning && result.warning.type === "REQUIRES_UPSTREAM") {
-					setRequiresUpstream(true);
+					setPrRequiresUpstream(true);
 					setOrigins(result.repo!.origins!);
-					setPrUpstream(result.repo!.origins![0]);
+					setPrRemoteName(result.repo!.origins![0]);
 				} else if (result && result.error) {
 					setPreconditionError({
 						type: result.error.type || "UNKNOWN",
@@ -1562,23 +1566,23 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 													style={{ resize: "vertical" }}
 												/>
 											</div>
-											{requiresUpstream && origins && origins.length && (
+											{prRequiresUpstream && origins && origins.length && (
 												<div className="control-group">
 													<Checkbox
 														name="set-upstream"
-														checked={prUpstreamOn}
+														checked={prRemoteNameCreationRequired}
 														onChange={e => {
 															const val = e.valueOf();
-															setPrUpstreamOn(val);
+															setPrRemoteNameCreationRequired(val);
 															if (origins && origins.length === 1) {
 																if (val) {
-																	setPrUpstream(origins[0]);
+																	setPrRemoteName(origins[0]);
 																}
 															}
 														}}
 													>
 														<Tooltip
-															title={`This will run 'git push -u ${prUpstream} ${pending?.headRefName}'`}
+															title={`This will run 'git push -u ${prRemoteName} ${pending?.headRefName}'`}
 														>
 															<span className="subtle">
 																Set upstream to{" "}
@@ -1590,12 +1594,12 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 																				label: `${_}/${pending?.headRefName}`,
 																				key: _,
 																				action: () => {
-																					setPrUpstream(_);
+																					setPrRemoteName(_);
 																				}
 																			};
 																		})}
 																	>
-																		{`${prUpstream || origins[0]}/${pending?.headRefName}`}
+																		{`${prRemoteName || origins[0]}/${pending?.headRefName}`}
 																	</DropdownButton>
 																)}
 																{origins.length === 1 && (
