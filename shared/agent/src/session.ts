@@ -517,6 +517,10 @@ export class CodeStreamSession {
 		this.agent.sendNotification(DidChangeServerUrlNotificationType, {
 			serverUrl: options.serverUrl
 		});
+		if (options.environment) {
+			this._environmentInfo.environment = options.environment;
+			this.agent.sendNotification(DidSetEnvironmentNotificationType, this._environmentInfo);
+		}
 	}
 
 	private _didEncounterMaintenanceMode() {
@@ -880,6 +884,14 @@ export class CodeStreamSession {
 			cc,
 			`Logging ${token.email} into CodeStream (@ ${token.url}) via authentication token...`
 		);
+
+		// coming from the webview after a successful email confirmation, we explicitly handle
+		// an instruction to switch environments, since the message to switch environments that is
+		// sent to the IDE may still be in progress
+		if (request.setEnvironment) {
+			this._environmentInfo.environment = request.setEnvironment.environment;
+			this.setServerUrl({ serverUrl: request.setEnvironment.serverUrl });
+		}
 
 		return this.login({
 			type: "token",
@@ -1276,6 +1288,16 @@ export class CodeStreamSession {
 				accountIsConnected: response.accountIsConnected,
 				isWebmail: response.isWebmail
 			};
+			if (response.setEnvironment) {
+				Logger.log(
+					`Passing directive to switch environments to ${response.setEnvironment.environment}:${response.setEnvironment.host}`
+				);
+				result.setEnvironment = {
+					environment: response.setEnvironment.environment,
+					serverUrl: response.setEnvironment.host
+				};
+			}
+
 			if (response.companies.length === 0) {
 				result.status = LoginResult.NotInCompany;
 				return result;

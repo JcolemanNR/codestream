@@ -4,7 +4,9 @@ import { CodeStreamState } from "../store";
 import { FormattedMessage } from "react-intl";
 import Icon from "../Stream/Icon";
 import Button from "../Stream/Button";
+import { InlineMenu } from "../src/components/controls/InlineMenu";
 import { Link } from "../Stream/Link";
+import { ModalRoot } from "../Stream/Modal"; // HACK ALERT: including this component is NOT the right way
 import {
 	goToNewUserEntry,
 	goToEmailConfirmation,
@@ -29,6 +31,8 @@ import { PresentTOS } from "./PresentTOS";
 import Tooltip from "../Stream/Tooltip";
 import { confirmPopup } from "../Stream/Confirm";
 import styled from "styled-components";
+import { setContext } from "../store/context/actions";
+import { UpdateServerUrlRequestType } from "../ipc/host.protocol";
 
 const isPasswordValid = (password: string) => password.length >= 6;
 export const isEmailValid = (email: string) => {
@@ -75,7 +79,8 @@ interface Props {
 export const Signup = (props: Props) => {
 	const dispatch = useDispatch();
 	const derivedState = useSelector((state: CodeStreamState) => {
-		const { serverUrl, isOnPrem, environment, isProductionCloud } = state.configs;
+		const { serverUrl, isOnPrem, environment, isProductionCloud, environmentHosts } = state.configs;
+		const { selectedRegion } = state.context;
 		let whichServer = isOnPrem ? serverUrl : "CodeStream's cloud service";
 		if (!isProductionCloud) {
 			whichServer += ` (${environment.toUpperCase()})`;
@@ -91,9 +96,12 @@ export const Signup = (props: Props) => {
 			supportsVSCodeGithubSignin: state.capabilities.vsCodeGithubSignin,
 			acceptedTOS: state.session.acceptedTOS,
 			webviewFocused: state.context.hasFocus,
-			pendingProtocolHandlerQuerySource: state.context.pendingProtocolHandlerQuery?.src
+			pendingProtocolHandlerQuerySource: state.context.pendingProtocolHandlerQuery?.src,
+			environmentHosts,
+			selectedRegion
 		};
 	});
+
 	const [email, setEmail] = useState(props.email || "");
 	const [emailValidity, setEmailValidity] = useState(true);
 	const [scmEmail, setScmEmail] = useState("");
@@ -111,6 +119,34 @@ export const Signup = (props: Props) => {
 	const [checkForWebmail, setCheckForWebmail] = useState(true);
 
 	const wasInvited = props.inviteCode !== undefined;
+
+	let regionItems,
+		regionSelected = "";
+	if (derivedState.environmentHosts) {
+		regionItems = Object.keys(derivedState.environmentHosts).map(key => ({
+			key,
+			label: derivedState.environmentHosts![key].name,
+			action: () => setSelectedRegion(key)
+		}));
+		if (!derivedState.selectedRegion) {
+			dispatch(setContext({ selectedRegion: "us" }));
+		}
+		regionSelected =
+			derivedState.environmentHosts && derivedState.selectedRegion
+				? derivedState.environmentHosts[derivedState.selectedRegion].name
+				: "";
+	}
+
+	const setSelectedRegion = region => {
+		dispatch(setContext({ selectedRegion: region }));
+		const host = derivedState.environmentHosts![region];
+		if (host && host.host) {
+			HostApi.instance.send(UpdateServerUrlRequestType, {
+				serverUrl: host.host,
+				environment: region
+			});
+		}
+	};
 
 	const getUserInfo = async () => {
 		const response = await HostApi.instance.send(GetUserInfoRequestType, {});
@@ -387,9 +423,11 @@ export const Signup = (props: Props) => {
 
 	if (!derivedState.acceptedTOS && props.tosType && props.tosType === "Interstitial")
 		return <PresentTOS />;
+	);
 
 	return (
 		<div className="onboarding-page">
+			<ModalRoot />
 			<div id="confirm-root" />
 			{derivedState.supportsSSOSignIn && showOauth && (
 				<form className="standard-form">
@@ -397,6 +435,17 @@ export const Signup = (props: Props) => {
 						<div id="controls">
 							<div className="border-bottom-box">
 								<h3>Create a CodeStream account, for free</h3>
+								<br />
+								{regionItems && (
+									<>
+										Region: <InlineMenu items={regionItems}>{regionSelected}</InlineMenu>{" "}
+										<Tooltip
+											title={`Select the region where your CodeStream data should be stored.`}
+										>
+											<Icon name="question" />
+										</Tooltip>
+									</>
+								)}
 								{!limitAuthentication && (
 									<Button className="row-button no-top-margin" onClick={onClickNewRelicSignup}>
 										<Icon name="newrelic" />

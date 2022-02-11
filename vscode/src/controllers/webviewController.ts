@@ -189,6 +189,12 @@ export class WebviewController implements Disposable {
 
 	private async onSessionStatusChanged(e: SessionStatusChangedEvent) {
 		const status = e.getStatus();
+		const state = Container.context.workspaceState.get<WebviewState>(WorkspaceState.webviewState, {
+			hidden: undefined,
+			teams: {}
+		});
+		let teamState;
+
 		switch (status) {
 			case SessionStatus.SignedOut:
 				if (e.reason === SessionSignedOutReason.SignInFailure) {
@@ -207,21 +213,15 @@ export class WebviewController implements Disposable {
 					}
 					break;
 				}
+				teamState = state.teams["#NOTEAM#"];
+				this._context = teamState && teamState.context;
 
 				break;
 
 			case SessionStatus.SignedIn:
 				this._lastEditor = Editor.getActiveOrVisible(undefined, this._lastEditor);
 
-				const state = Container.context.workspaceState.get<WebviewState>(
-					WorkspaceState.webviewState,
-					{
-						hidden: undefined,
-						teams: {}
-					}
-				);
-
-				const teamState = state.teams[this.session.team.id];
+				teamState = state.teams[this.session.team.id];
 				this._context = teamState && teamState.context;
 
 				// only show if the state is explicitly set to false
@@ -997,7 +997,11 @@ export class WebviewController implements Disposable {
 						params.disableStrictSSL,
 						ConfigurationTarget.Global
 					);
-					Container.setServerUrl(params.serverUrl, params.disableStrictSSL ? true : false);
+					Container.setServerUrl(
+						params.serverUrl,
+						params.disableStrictSSL ? true : false,
+						params.environment
+					);
 					return emptyObj;
 				});
 
@@ -1252,7 +1256,10 @@ export class WebviewController implements Disposable {
 		}
 
 		try {
-			if (!this.session.signedIn) return;
+			// if (!this.session.signedIn) return;
+
+			const teamId =
+				(this.session.signedIn && this.session.team && this.session.team.id) || "#NOTEAM#";
 
 			const prevState = Container.context.workspaceState.get<WebviewState>(
 				WorkspaceState.webviewState,
@@ -1263,7 +1270,7 @@ export class WebviewController implements Disposable {
 			);
 
 			const teams = prevState.teams || {};
-			teams[this.session.team.id] = {
+			teams[teamId] = {
 				context: this._context
 			};
 

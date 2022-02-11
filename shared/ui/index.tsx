@@ -156,7 +156,8 @@ export async function initialize(selector: string) {
 				updateConfigs({
 					isOnPrem: resp.isOnPrem,
 					environment: resp.environment,
-					isProductionCloud: resp.isProductionCloud
+					isProductionCloud: resp.isProductionCloud,
+					environmentHosts: resp.environmentHosts
 				})
 			);
 		}

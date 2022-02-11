@@ -23,6 +23,7 @@ import {
 import { LoginResult } from "@codestream/protocols/api";
 import { authenticate, completeSignup } from "./actions";
 import Icon from "../Stream/Icon";
+import { UpdateServerUrlRequestType } from "../ipc/host.protocol";
 
 const errorToMessageId = {
 	[LoginResult.InvalidToken]: "confirmation.invalid",
@@ -115,6 +116,17 @@ export const EmailConfirmation = (connect() as any)((props: Props) => {
 				confirmationCode: code
 			});
 
+			// as a result of confirmation, we may be told to switch environments (i.e., regions)
+			if (result.setEnvironment) {
+				const { environment, serverUrl } = result.setEnvironment;
+				console.log(
+					`Upon confirmation, received instruction to change environments to ${environment}:${serverUrl}`
+				);
+				await HostApi.instance.send(UpdateServerUrlRequestType, {
+					serverUrl,
+					environment
+				});
+			}
 			switch (result.status) {
 				case LoginResult.NotInCompany: {
 					HostApi.instance.track("Email Confirmed");
@@ -137,7 +149,10 @@ export const EmailConfirmation = (connect() as any)((props: Props) => {
 					HostApi.instance.track("Email Confirmed");
 					try {
 						props.dispatch(
-							completeSignup(props.email, result.token!, props.teamId, { createdTeam: false })
+							completeSignup(props.email, result.token!, props.teamId, {
+								createdTeam: false,
+								setEnvironment: result.setEnvironment
+							})
 						);
 					} catch (error) {
 						// TODO?: communicate confirmation was successful

@@ -907,10 +907,7 @@ export class CodeStreamApiProvider implements ApiProvider {
 					if (!this._preferences) {
 						this._preferences = new CodeStreamPreferences(me.preferences);
 					}
-					if (
-						me.preferences &&
-						JSON.stringify(me.preferences) !== userPreferencesBefore
-					) {
+					if (me.preferences && JSON.stringify(me.preferences) !== userPreferencesBefore) {
 						this._preferences.update(me.preferences);
 					}
 				} catch {
@@ -2864,6 +2861,7 @@ export class CodeStreamApiProvider implements ApiProvider {
 				response.isOnPrem = json.isOnPrem;
 				response.isProductionCloud = json.isProductionCloud;
 				response.newRelicLandingServiceUrl = json.newRelicLandingServiceUrl;
+				response.environmentHosts = json.environmentHosts;
 			}
 		} catch (err) {
 			Logger.log(`Error connecting to the API server: ${err.message}`);

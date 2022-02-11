@@ -119,6 +119,10 @@ export interface CSLoginResponse {
 	eligibleJoinCompanies?: CSEligibleJoinCompany[];
 	accountIsConnected?: boolean;
 	isWebmail?: boolean;
+	setEnvironment?: {
+		environment: string;
+		host: string;
+	};
 }
 
 export interface CSRegisterRequest {

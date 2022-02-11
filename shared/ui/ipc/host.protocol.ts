@@ -163,6 +163,7 @@ export const ShellPromptFolderRequestType = new RequestType<
 export interface UpdateServerUrlRequest {
 	serverUrl: string;
 	disableStrictSSL?: boolean;
+	environment?: string;
 }
 
 export interface UpdateServerUrlResponse {}

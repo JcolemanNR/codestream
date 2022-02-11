@@ -423,7 +423,6 @@ export const openErrorGroup = (
 		objectId: errorGroupGuid,
 		objectType: "errorGroup"
 	});
-	console.warn("COLIN: CLAIM RESPONSE:", response);
 
 	if (response.unauthorized) {
 		let message;

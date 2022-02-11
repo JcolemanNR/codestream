@@ -51,6 +51,7 @@ export interface TokenLoginRequest {
 	codemarkId?: string;
 	reviewId?: string;
 	codeErrorId?: string;
+	setEnvironment?: { environment: string; serverUrl: string };
 }
 
 export const TokenLoginRequestType = new RequestType<TokenLoginRequest, LoginResponse, void, void>(
@@ -143,6 +144,12 @@ export const RegisterNrUserRequestType = new RequestType<
 
 export interface ConfirmRegistrationRequest extends CSConfirmRegistrationRequest {}
 
+export interface EnvironmentInfo {
+	key: string;
+	name: string;
+	host: string;
+}
+
 export interface ConfirmRegistrationResponse {
 	user?: {
 		id: string;
@@ -153,6 +160,10 @@ export interface ConfirmRegistrationResponse {
 	accountIsConnected?: boolean;
 	isWebmail?: boolean;
 	companies?: CSCompany[];
+	setEnvironment?: {
+		environment: string;
+		serverUrl: string;
+	};
 }
 
 export const ConfirmRegistrationRequestType = new RequestType<

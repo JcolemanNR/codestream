@@ -161,6 +161,11 @@ export interface ApiRequest {
 }
 export const ApiRequestType = new RequestType<ApiRequest, any, void, void>("codestream/api");
 
+export interface EnvironmentHost {
+	name: string;
+	host: string;
+}
+
 export interface VerifyConnectivityResponse {
 	ok: boolean;
 	error?: {
@@ -174,6 +179,7 @@ export interface VerifyConnectivityResponse {
 	isOnPrem?: boolean;
 	isProductionCloud?: boolean;
 	newRelicLandingServiceUrl?: string;
+	environmentHosts?: { [key: string]: EnvironmentHost };
 }
 
 export const VerifyConnectivityRequestType = new RequestType<
@@ -296,6 +302,7 @@ export const UIStateRequestType = new RequestType<UIStateRequest, void, void, vo
 export interface SetServerUrlRequest {
 	serverUrl: string;
 	disableStrictSSL?: boolean;
+	environment?: string;
 }
 
 export const SetServerUrlRequestType = new RequestType<SetServerUrlRequest, void, void, void>(

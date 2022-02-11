@@ -17,6 +17,11 @@ import { CodeStreamState } from "@codestream/webview/store";
 import { LoginResult } from "@codestream/protocols/api";
 import { goToNewUserEntry, goToCompanyCreation, goToLogin } from "../store/context/actions";
 import { completeSignup } from "./actions";
+import { setContext } from "../store/context/actions";
+import { UpdateServerUrlRequestType } from "../ipc/host.protocol";
+import { InlineMenu } from "../src/components/controls/InlineMenu";
+import { ModalRoot } from "../Stream/Modal"; // HACK ALERT: including this component is NOT the right way
+import Tooltip from "../Stream/Tooltip";
 
 const FooterWrapper = styled.div`
 	text-align: center;
@@ -38,12 +43,16 @@ export const SignupNewRelic = () => {
 	//Redux declarations
 	const dispatch = useDispatch();
 	const derivedState = useSelector((state: CodeStreamState) => {
-		console.log(state);
+		const { environmentHosts } = state.configs;
+		const { selectedRegion } = state.context;
+
 		return {
 			ide: state.ide,
 			webviewFocused: state.context.hasFocus,
 			isProductionCloud: state.configs.isProductionCloud,
-			pendingProtocolHandlerQuerySource: state.context.pendingProtocolHandlerQuery?.src
+			pendingProtocolHandlerQuerySource: state.context.pendingProtocolHandlerQuery?.src,
+			environmentHosts,
+			selectedRegion
 		};
 	});
 
@@ -56,6 +65,33 @@ export const SignupNewRelic = () => {
 	const getApiKeyUrl = derivedState.isProductionCloud
 		? "https://one.newrelic.com/launcher/api-keys-ui.api-keys-launcher"
 		: "https://staging-one.newrelic.com/launcher/api-keys-ui.api-keys-launcher";
+
+	let regionItems,
+		regionSelected = "";
+	if (derivedState.environmentHosts) {
+		regionItems = Object.keys(derivedState.environmentHosts).map(key => ({
+			key,
+			label: derivedState.environmentHosts![key].name,
+			action: () => setSelectedRegion(key)
+		}));
+		if (!derivedState.selectedRegion) {
+			dispatch(setContext({ selectedRegion: "us" }));
+		}
+		regionSelected =
+			derivedState.environmentHosts && derivedState.selectedRegion
+				? derivedState.environmentHosts[derivedState.selectedRegion].name
+				: "";
+	}
+
+	const setSelectedRegion = region => {
+		dispatch(setContext({ selectedRegion: region }));
+		const host = derivedState.environmentHosts![region];
+		if (host && host.host) {
+			HostApi.instance.send(UpdateServerUrlRequestType, {
+				serverUrl: host.host
+			});
+		}
+	};
 
 	const onSubmit = async (event: React.SyntheticEvent) => {
 		event.preventDefault();
@@ -140,6 +176,7 @@ export const SignupNewRelic = () => {
 
 	return (
 		<div className="standard-form vscroll">
+			<ModalRoot />
 			<fieldset className="form-body">
 				<h3>Sign Up with New Relic</h3>
 				<div id="controls">
@@ -178,6 +215,16 @@ export const SignupNewRelic = () => {
 									</div>
 								</ErrorMessageWrapper>
 							)}
+							{regionItems && (
+								<>
+									Region: <InlineMenu items={regionItems}>{regionSelected}</InlineMenu>{" "}
+									<Tooltip title={`Select the region where your CodeStream data should be stored.`}>
+										<Icon name="question" />
+									</Tooltip>
+								</>
+							)}
+							<br />
+							<br />
 							<label>
 								Enter your New Relic user API key.{" "}
 								<Link href={getApiKeyUrl}>Get your API key.</Link>

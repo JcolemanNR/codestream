@@ -306,15 +306,23 @@ export const completeSignup = (
 	email: string,
 	token: string,
 	teamId: string,
-	extra: { createdTeam: boolean; provider?: string; byDomain?: boolean }
+	extra: {
+		createdTeam: boolean;
+		provider?: string;
+		byDomain?: boolean;
+		setEnvironment?: { environment: string; serverUrl: string };
+	}
 ) => async (dispatch, getState: () => CodeStreamState) => {
+	const tokenUrl =
+		(extra.setEnvironment && extra.setEnvironment.serverUrl) || getState().configs.serverUrl;
 	const response = await HostApi.instance.send(TokenLoginRequestType, {
 		token: {
 			value: token,
 			email,
-			url: getState().configs.serverUrl
+			url: tokenUrl
 		},
-		teamId
+		teamId,
+		setEnvironment: extra.setEnvironment
 	});
 
 	if (isLoginFailResponse(response)) {

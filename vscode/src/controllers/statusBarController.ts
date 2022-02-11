@@ -80,6 +80,10 @@ export class StatusBarController implements Disposable {
 		}
 	}
 
+	update() {
+		this.updateStatusBar(Container.session.status);
+	}
+
 	private updateStatusBar(
 		status: SessionStatus,
 		unreads: { totalMentions: number; totalUnreads: number } = { totalMentions: 0, totalUnreads: 0 }
