@@ -772,7 +772,7 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 					(await xfs.readText(path.join(repo.path, ".github/PULL_REQUEST_TEMPLATE.md"))) ||
 					(await xfs.readText(path.join(repo.path, ".gitlab/merge_request_template.md")));
 
-				let templatePath = path.join(repo.path, ".gitlab", "merge_request_templates");
+				const templatePath = path.join(repo.path, ".gitlab", "merge_request_templates");
 				if (fs.existsSync(templatePath) && fs.lstatSync(templatePath).isDirectory()) {
 					pullRequestTemplatePath = templatePath;
 					pullRequestTemplateNames = (await fs.readdirSync(templatePath))
@@ -786,7 +786,6 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 				repo: {
 					id: repo.id,
 					remoteUrl: remoteUrl,
-					remotes: remotes,
 					origins: originNames,
 					remoteBranch: remoteBranch,
 					branch: headRefName,

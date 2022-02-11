@@ -314,37 +314,46 @@ export interface CheckPullRequestPreconditionsRequest {
 export interface CheckPullRequestPreconditionsResponse {
 	success: boolean;
 	review?: Pick<CSReview, "title" | "text">;
+	/**
+	 * CodeStream repo data
+	 */
 	repo?: {
+		/** CodeStream repo Id */
 		id?: string;
+		/** remote as found in `git remote -v` */
 		remoteUrl?: string;
+		/** current branch */
 		branch?: string;
-		branches?: string[];
+		/** current remote branch */
 		remoteBranch?: string;
-
+		/** list of local branches */
+		branches?: string[];
+		/** list of remote branches */
 		remoteBranches?: { remote?: string; branch: string }[];
 		commitsBehindOriginHeadBranch?: string;
+		/** list of origin names... things like origin, upstream, etc. */
 		origins?: string[];
-		remotes?: any[];
 	};
 	provider?: {
 		/** CS-specific providerId like github*com */
 		id?: string;
 		/** for github, this would be GitHub */
 		name?: string;
+		/** is this provider connected in CodeStream */
 		isConnected?: boolean;
-
 		pullRequestTemplate?: string;
 		pullRequestTemplateNames?: string[];
 		pullRequestTemplatePath?: string;
 		pullRequestTemplateLinesCount?: number;
-
+		/**
+		 * repo information tied to the provider
+		 */
 		repo?: {
 			/** this is the provider-specific repository id */
 			providerRepoId?: string;
-			/**
-			 * default branch: master, main, something else...
-			 */
+			/** default branch: master, main, something else, etc.... */
 			defaultBranch?: string;
+			/** is this repo a fork? */
 			isFork?: boolean;
 			/** in github.com/TeamCodeStream/codestream this is TeamCodeStream/codestream */
 			nameWithOwner?: string;
