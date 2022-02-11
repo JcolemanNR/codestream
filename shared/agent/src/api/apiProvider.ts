@@ -116,6 +116,8 @@ import {
 	GetUserResponse,
 	InviteUserRequest,
 	InviteUserResponse,
+	JoinCompanyRequest,
+	JoinCompanyResponse,
 	JoinStreamRequest,
 	JoinStreamResponse,
 	KickUserRequest,
@@ -500,6 +502,8 @@ export interface ApiProvider {
 		accountIds?: number[],
 		orgIds?: number[]
 	): Promise<boolean>;
+	joinCompany(request: JoinCompanyRequest): Promise<JoinCompanyResponse>;
+	joinCompanyFromEnvironment(request: JoinCompanyRequest): Promise<JoinCompanyResponse>;
 
 	fetchUsers(request: FetchUsersRequest): Promise<FetchUsersResponse>;
 	getUser(request: GetUserRequest): Promise<GetUserResponse>;

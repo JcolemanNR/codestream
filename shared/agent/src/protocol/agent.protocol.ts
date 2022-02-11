@@ -164,6 +164,7 @@ export const ApiRequestType = new RequestType<ApiRequest, any, void, void>("code
 export interface EnvironmentHost {
 	name: string;
 	host: string;
+	key?: string;
 }
 
 export interface VerifyConnectivityResponse {

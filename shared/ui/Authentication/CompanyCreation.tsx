@@ -14,7 +14,9 @@ import { HostApi } from "..";
 import { completeSignup, ProviderNames } from "./actions";
 import {
 	CreateCompanyRequestType,
+	EnvironmentHost,
 	JoinCompanyRequestType,
+	JoinCompanyRequest,
 	JoinCompanyResponse
 } from "@codestream/protocols/agent";
 import { changeRegistrationEmail } from "../store/session/actions";
@@ -23,6 +25,7 @@ import { isUndefined as _isUndefined } from "lodash-es";
 import { ReloadAllWindows } from "./ReloadAllWindows";
 import { ModalRoot } from "../Stream/Modal";
 import { CodeStreamState } from "@codestream/webview/store";
+import { UpdateServerUrlRequestType } from "../ipc/host.protocol";
 
 export const CheckboxRow = styled.div`
 	padding: 5px 0 5px 0;
@@ -57,6 +60,7 @@ interface EnhancedCSCompany {
 	memberCount?: number;
 	name: string;
 	_type: "Domain" | "Invite Detected";
+	host?: EnvironmentHost;
 }
 
 export function CompanyCreation(props: {
@@ -199,9 +203,31 @@ export function CompanyCreation(props: {
 		setIsLoadingJoinTeam(organization.id);
 
 		try {
-			const result = (await HostApi.instance.send(JoinCompanyRequestType, {
+			if (organization.host) {
+				// must switch environments (i.e., host, region, etc) to join this organization
+				console.log(
+					`Joining company ${organization.name} requires switching host to ${organization.host.name} at ${organization.host.host}`
+				);
+				await HostApi.instance.send(UpdateServerUrlRequestType, {
+					serverUrl: organization.host.host,
+					environment: organization.host.key
+				});
+			}
+			const request: JoinCompanyRequest = {
 				companyId: organization.id
-			})) as JoinCompanyResponse;
+			};
+			if (organization.host) {
+				// explicitly add the environment to the request, since the switch-over may still be in progress
+				// NOTE: the environment here is the environment we are switching FROM, not TO
+				request.fromEnvironment = {
+					serverUrl: derivedState.serverUrl,
+					userId: props.userId!
+				};
+			}
+			const result = (await HostApi.instance.send(
+				JoinCompanyRequestType,
+				request
+			)) as JoinCompanyResponse;
 
 			HostApi.instance.track("Joined Organization", {
 				Availability: organization._type,
@@ -211,7 +237,13 @@ export function CompanyCreation(props: {
 				completeSignup(props.email!, props.token!, result.team.id, {
 					createdTeam: false,
 					provider: props.provider,
-					byDomain: true
+					byDomain: true,
+					setEnvironment: organization.host
+						? {
+								environment: organization.host.key!,
+								serverUrl: organization.host.host
+						  }
+						: undefined
 				})
 			);
 		} catch (error) {

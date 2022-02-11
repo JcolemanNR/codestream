@@ -1917,10 +1917,18 @@ export class CodeStreamApiProvider implements ApiProvider {
 		return this.get<CSGetCompanyResponse>(`/companies/${request.companyId}`, this._token);
 	}
 
-	@lspHandler(JoinCompanyRequestType)
-	@log()
 	async joinCompany(request: JoinCompanyRequest): Promise<JoinCompanyResponse> {
 		return this.put(`/companies/join/${request.companyId}`, {}, this._token);
+	}
+
+	async joinCompanyFromEnvironment(request: JoinCompanyRequest): Promise<JoinCompanyResponse> {
+		const { serverUrl, userId } = request.fromEnvironment!;
+		const xenvRequest = {
+			serverUrl,
+			userId,
+			accessToken: this._token
+		};
+		return this.put(`/xenv/join-company/${request.companyId}`, xenvRequest);
 	}
 
 	@lspHandler(UpdateCompanyRequestType)

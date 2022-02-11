@@ -53,6 +53,10 @@ export const CreateCompanyRequestType = new RequestType<
 
 export interface JoinCompanyRequest {
 	companyId: string;
+	fromEnvironment?: {
+		serverUrl: string;
+		userId: string;
+	};
 }
 
 export interface JoinCompanyResponse {

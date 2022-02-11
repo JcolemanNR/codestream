@@ -1,5 +1,5 @@
 "use strict";
-import { CodeStreamEnvironmentInfo } from "./agent.protocol";
+import { CodeStreamEnvironmentInfo, EnvironmentHost } from "./agent.protocol";
 import { RepoScmStatus } from "./agent.protocol.scm";
 import {
 	Attachment,
@@ -95,6 +95,7 @@ export interface CSEligibleJoinCompany {
 	id: string;
 	memberCount?: number;
 	name: string;
+	host?: EnvironmentHost;
 }
 
 export interface CSLoginResponse {
