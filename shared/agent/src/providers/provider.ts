@@ -1281,12 +1281,10 @@ export interface ProviderCreatePullRequestResponse {
 	error?: { message?: string; type: string };
 }
 
-// export interface ProviderGetPullRequestRequest {
-// 	pullRequestId: string;
-// 	providerId: string;
-// }
-
-// export interface ProviderGetPullRequestResponse {
-// 	pullRequestId: string;
-// 	providerId: string;
-// }
+export interface RepoPullRequestProvider {
+	repo: GitRepository;
+	providerId: string;
+	providerName: string;
+	provider: ThirdPartyProvider & ThirdPartyProviderSupportsPullRequests;
+	remotes: GitRemote[];
+}

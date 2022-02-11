@@ -10,6 +10,7 @@ import {
 	CSRepository
 } from "../../protocol/api.protocol";
 import {
+	RepoPullRequestProvider,
 	ThirdPartyProvider,
 	ThirdPartyProviderSupportsPullRequests
 } from "../../providers/provider";
@@ -109,16 +110,7 @@ export class GitRepository {
 	async getPullRequestProvider(
 		user?: CSMe,
 		connectedProviders?: (ThirdPartyProvider & ThirdPartyProviderSupportsPullRequests)[]
-	): Promise<
-		| {
-				repo: GitRepository;
-				providerId: string;
-				providerName: string;
-				provider: ThirdPartyProvider & ThirdPartyProviderSupportsPullRequests;
-				remotes: GitRemote[];
-		  }
-		| undefined
-	> {
+	): Promise<RepoPullRequestProvider | undefined> {
 		try {
 			if (!user) {
 				Logger.warn("getPullRequestProvider no CSMe user");

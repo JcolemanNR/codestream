@@ -589,7 +589,7 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 
 		let warning = undefined;
 		let remotes: GitRemote[] | undefined;
-		let repo: any;
+		let repo: GitRepository | undefined;
 		let review: CSReview | undefined = undefined;
 		let isProviderConnected = false;
 
@@ -652,14 +652,19 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			let providerRepoId: string | undefined = undefined;
 			let owner: string | undefined = undefined;
 
+			// given a user, get all of their connected providers
 			const user = await users.getMe();
 			const connectedProviders = await providerRegistry.getConnectedPullRequestProviders(user);
+			// given the repo we care about, try to map it to one of the code host providers
 			const providerRepo = await repo.getPullRequestProvider(user, connectedProviders);
+
 			let providerRepoDefaultBranch: string | undefined = "";
 			let baseRefName: string | undefined = request.baseRefName;
 
+			// these remotes are from the user's local git
 			if (providerRepo?.provider && providerRepo?.remotes?.length > 0) {
 				remoteUrl = providerRepo.remotes[0].webUrl;
+				// get repo info, delegating to the actual provider's api
 				const providerRepoInfo = await providerRegistry.getRepoInfo({
 					providerId: providerRepo.providerId,
 					remote: remoteUrl!
@@ -676,9 +681,13 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 					baseRefName = baseRefName || providerRepoDefaultBranch;
 					if (providerRepoInfo.pullRequests?.length) {
 						if (baseRefName && headRefName) {
+							// if there's already an open pull requests for this base/head
+							// and nameWithOwner combo, fail
 							const existingPullRequest = providerRepoInfo.pullRequests.find(
-								(_: any) => _.baseRefName === baseRefName && _.headRefName === headRefName 
-								&& _.nameWithOwner === providerRepoInfo.nameWithOwner
+								(_: any) =>
+									_.baseRefName === baseRefName &&
+									_.headRefName === headRefName &&
+									_.nameWithOwner === providerRepoInfo.nameWithOwner
 							);
 							if (existingPullRequest) {
 								return {
@@ -690,7 +699,7 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 									},
 									provider: {
 										id: providerRepo.providerId,
-										name: providerRepo.name
+										name: providerRepo.providerName
 									}
 								};
 							}
@@ -729,10 +738,10 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 				};
 			}
 
-			const branches = await git.getBranches(repo.path);
-			const remoteBranches = await git.getBranches(repo.path, true);
 			let originNames;
 			let remoteBranch;
+			const branches = await git.getBranches(repo.path);
+			const remoteBranches = await git.getBranches(repo.path, true);
 			const branchRemote = await git.getBranchRemote(repo.path, headRefName!);
 			if (!branchRemote) {
 				Logger.log(`Couldn't find branchRemote for ${repo.path} and ${headRefName}`);
@@ -743,6 +752,12 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 			} else {
 				remoteBranch = branchRemote;
 			}
+			const baseBranchRemote = await git.getBranchRemote(repo.path, baseRefName!);
+			const commitsBehindOrigin = await git.getBranchCommitsStatus(
+				repo.path,
+				baseBranchRemote!,
+				baseRefName!
+			);
 
 			let pullRequestTemplateNames: string[] = [];
 			let pullRequestTemplatePath;
@@ -765,13 +780,6 @@ export class ReviewsManager extends CachedEntityManagerBase<CSReview> {
 						.map(filepath => filepath.replace(/\.md$/, ""));
 				}
 			}
-
-			const baseBranchRemote = await git.getBranchRemote(repo.path, baseRefName!);
-			const commitsBehindOrigin = await git.getBranchCommitsStatus(
-				repo.path,
-				baseBranchRemote!,
-				baseRefName!
-			);
 
 			return {
 				success: success,
