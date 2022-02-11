@@ -196,10 +196,10 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 	const pauseDataNotifications = useRef(false);
 
 	// loaders
-	const [loading, setLoading] = useState(true);
-	const [loadingForkInfo, setLoadingForkInfo] = useState(false);
-	const [loadingBranchInfo, setLoadingBranchInfo] = useState(false);
-	const [submitting, setSubmitting] = useState(false);
+	const [isLoading, setIsLoading] = useState(true);
+	const [isLoadingForkInfo, setIsLoadingForkInfo] = useState(false);
+	const [isLoadingBranchInfo, setIsLoadingBranchInfo] = useState(false);
+	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [isWaiting, setIsWaiting] = useState(false);
 	const [isLoadingDiffs, setIsLoadingDiffs] = useState(false);
 
@@ -272,7 +272,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		setPreconditionWarning({ message: "", type: "", url: "", id: "" });
 		// already waiting on a provider auth, keep using that loading ui
 		if (currentStep != 2) {
-			setLoading(true);
+			setIsLoading(true);
 			setCurrentStep(0);
 		}
 		let newPullRequestBranch: NewPullRequestBranch | undefined = undefined;
@@ -431,7 +431,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			});
 			setUnexpectedError(true);
 		} finally {
-			setLoading(false);
+			setIsLoading(false);
 		}
 	};
 	fetchPreconditionDataRef.current = fetchPreconditionData;
@@ -500,7 +500,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		}
 
 		let success = false;
-		setSubmitting(true);
+		setIsSubmitting(true);
 		setFormState({ message: "", type: "", url: "", id: "" });
 		setPreconditionError({ message: "", type: "", url: "", id: "" });
 		setPreconditionWarning({ message: "", type: "", url: "", id: "" });
@@ -562,7 +562,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 			logError(`Unexpected error during pull request creation: ${error}`, {});
 			setUnexpectedError(true);
 		} finally {
-			setSubmitting(false);
+			setIsSubmitting(false);
 			if (!success) {
 				// resume the DataNotifications
 				// if we didn't succeed...
@@ -602,7 +602,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		// is done loading.  That screen does load branch info though, so this conditional
 		// prevents showing an out of place loading spinner when fork branch info is being loaded
 		// and the user is on the default non-accross forks pr create screen.
-		if (!loadingForkInfo) setLoadingBranchInfo(true);
+		if (!isLoadingForkInfo) setIsLoadingBranchInfo(true);
 
 		let repoId: string = "";
 		if (!derivedState.reviewId) {
@@ -661,10 +661,10 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 				}
 				// is there a way to fetch diffs across forks w/provider APIs?
 				if (!acrossForks) fetchFilesChanged(result.repo!.id!, localPrBranch, localReviewBranch);
-				setLoadingBranchInfo(false);
+				setIsLoadingBranchInfo(false);
 			})
 			.catch(error => {
-				setLoadingBranchInfo(false);
+				setIsLoadingBranchInfo(false);
 
 				setPreconditionError({
 					type: "UNKNOWN",
@@ -678,7 +678,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 	const fetchRepositoryForks = async (providerId, remoteUrl) => {
 		if (!providerId || !remoteUrl) return;
 
-		setLoadingForkInfo(true);
+		setIsLoadingForkInfo(true);
 		try {
 			const response = (await HostApi.instance.send(ExecuteThirdPartyRequestUntypedType, {
 				method: "getForkedRepos",
@@ -695,7 +695,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		} catch (ex) {
 			console.warn("getForkedRepos", ex);
 		} finally {
-			setLoadingForkInfo(false);
+			setIsLoadingForkInfo(false);
 		}
 	};
 
@@ -1369,10 +1369,10 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 		<Root className="full-height-codemark-form">
 			<PanelHeader title={`Open a ${prLabel.PullRequest}`}>
 				{derivedState.reviewId ? "" : `Choose two branches to start a new ${prLabel.pullrequest}.`}
-				{!derivedState.reviewId && (loadingForkInfo || loading) && (
+				{!derivedState.reviewId && (isLoadingForkInfo || isLoading) && (
 					<Icon className="spin smaller" name="sync" />
 				)}
-				{!derivedState.reviewId && !loadingForkInfo && forkedRepos.length > 0 && (
+				{!derivedState.reviewId && !isLoadingForkInfo && forkedRepos.length > 0 && (
 					<>
 						{" "}
 						If you need to, you can also{" "}
@@ -1387,8 +1387,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 						<fieldset className="form-body">
 							<div id="controls">
 								<div className="spacer" />
-								{!loading && formErrorMessages()}
-								{loading && <LoadingMessage>Loading repo info...</LoadingMessage>}
+								{!isLoading && formErrorMessages()}
+								{isLoading && <LoadingMessage>Loading repo info...</LoadingMessage>}
 								<Step1 step={currentStep}>
 									<div>
 										Open a {prLabel.pullrequest} on {renderProviders()}
@@ -1448,8 +1448,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 											)}
 										</PRCompare>
 									</div>
-									{loadingBranchInfo && <LoadingMessage>Loading branch info...</LoadingMessage>}
-									{(!loading && preconditionError.type) || loadingBranchInfo ? null : (
+									{isLoadingBranchInfo && <LoadingMessage>Loading branch info...</LoadingMessage>}
+									{(!isLoading && preconditionError.type) || isLoadingBranchInfo ? null : (
 										<div>
 											{!titleValidity && (
 												<small className={cx("explainer", { "error-message": !titleValidity })}>
@@ -1654,8 +1654,8 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 													</Checkbox>
 												</div>
 											)}
-											{!loading &&
-												!loadingBranchInfo &&
+											{!isLoading &&
+												!isLoadingBranchInfo &&
 												preconditionWarning.type &&
 												preconditionWarningMessages()}
 
@@ -1664,7 +1664,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 													Cancel
 												</Button>
 
-												<Button onClick={onSubmit} isLoading={submitting}>
+												<Button onClick={onSubmit} isLoading={isSubmitting}>
 													{prProviderIconName && (
 														<Icon name={prProviderIconName} style={{ marginRight: "3px" }} />
 													)}
@@ -1692,7 +1692,10 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 							</div>
 						</fieldset>
 					</div>
-					{!loading && !loadingBranchInfo && preconditionError.type && preconditionErrorMessages()}
+					{!isLoading &&
+						!isLoadingBranchInfo &&
+						preconditionError.type &&
+						preconditionErrorMessages()}
 				</div>
 				{showDiffs && (
 					<>
@@ -1719,7 +1722,7 @@ export const CreatePullRequestPanel = (props: { closePanel: MouseEventHandler<El
 						{showDiffs && (
 							<PullRequestFilesChangedList
 								readOnly
-								isLoading={loadingBranchInfo || isLoadingDiffs}
+								isLoading={isLoadingBranchInfo || isLoadingDiffs}
 								repoId={pending?.repoId}
 								filesChanged={filesChanged}
 								baseRef={pending?.baseRefName!}
